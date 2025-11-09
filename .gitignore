@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+osint.db
+report.pdf
+static/heatmap.html
