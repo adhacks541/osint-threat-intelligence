@@ -50,11 +50,11 @@
                     <div class="row">
                         <div class="col-md-6">
                             <label for="query" class="form-label">Query <i class="fas fa-info-circle" data-bs-toggle="tooltip" title="Enter a domain, IP, or search term"></i></label>
-                            <input type="text" class="form-control" id="query" required>
+                            <input type="text" class="form-control" id="query" name="query" required>
                         </div>
                         <div class="col-md-4">
                             <label for="tool" class="form-label">Tool</label>
-                            <select class="form-select" id="tool">
+                            <select class="form-select" id="tool" name="tool">
                                 <option value="shodan">Shodan (IPs)</option>
                                 <option value="theharvester">theHarvester (Emails/Domains)</option>
                                 <option value="google_dorks">Google Dorks (Domains)</option>
@@ -157,6 +157,11 @@
                     $('#collectSpinner').hide();
                     Swal.fire('Success!', 'Data collected successfully.', 'success');
                     loadFindings(); // Refresh table
+                    
+                    // Auto-refresh heatmap if it's visible
+                    if ($('#heatmapFrame').is(':visible')) {
+                        $('#loadHeatmap').trigger('click');
+                    }
                 }).fail(function() {
                     $('#collectSpinner').hide();
                     Swal.fire('Error!', 'Failed to collect data.', 'error');
@@ -172,19 +177,22 @@
             function loadFindings() {
                 var keyword = $('#searchKeyword').val();
                 $.get('/search', {keyword: keyword}, function(data) {
-                    var tbody = $('#results');
-                    tbody.empty();
-                    data.forEach(function(item) {
-                        tbody.append('<tr><td>' + item[1] + '</td><td>' + item[2] + '</td><td>' + item[3] + '</td></tr>');
+                    var table = $('#findingsTable').DataTable();
+                    table.clear();
+                    var rows = data.map(function(item) {
+                        return [item[1], item[2], item[3]];
                     });
-                    $('#findingsTable').DataTable().draw(); // Redraw table
+                    table.rows.add(rows);
+                    table.draw();
                 });
             }
 
             // Load heatmap
             $('#loadHeatmap').on('click', function() {
                 $('#heatmapSpinner').show();
-                $('#heatmapFrame').attr('src', '/heatmap').on('load', function() {
+                var timestamp = new Date().getTime();
+                // Add a timestamp to prevent browser caching
+                $('#heatmapFrame').attr('src', '/heatmap?v=' + timestamp).on('load', function() {
                     $('#heatmapSpinner').hide();
                     $(this).show();
                 });

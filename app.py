@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_file
 import sqlite3
 import folium
-import pdfkit
+from xhtml2pdf import pisa
 import os
 
 app = Flask(__name__)
@@ -21,31 +21,15 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Pre-load sample data
-def preload_data():
-    conn = sqlite3.connect('osint.db')
-    c = conn.cursor()
-    # Check if data already exists
-    c.execute("SELECT COUNT(*) FROM findings")
-    if c.fetchone()[0] == 0:
-        sample_data = [
-            ('IP', '192.168.1.1', 'Shodan', 37.7749, -122.4194),  # San Francisco
-            ('IP', '8.8.8.8', 'Shodan', 37.3860, -122.0840),     # Mountain View
-            ('Email', 'test@example.com', 'theHarvester', None, None),
-            ('Domain', 'malicious-site.com', 'Google Dorks', None, None),
-            ('IP', '203.0.113.1', 'Shodan', 35.6762, 139.6503),  # Tokyo
-        ]
-        c.executemany("INSERT INTO findings (type, value, source, lat, lon) VALUES (?, ?, ?, ?, ?)", sample_data)
-        conn.commit()
-    conn.close()
+
 
 init_db()
-preload_data()
 
 # Mocked OSINT Functions (return sample data)
 def shodan_search(query):
+    # Simple mock: return a fixed location for any IP query, but include the query IP.
     return [
-        {'type': 'IP', 'value': '192.168.1.1', 'source': 'Shodan', 'lat': 37.7749, 'lon': -122.4194},
+        {'type': 'IP', 'value': query, 'source': 'Shodan', 'lat': 40.7128, 'lon': -74.0060}, # New York
         {'type': 'IP', 'value': '8.8.8.8', 'source': 'Shodan', 'lat': 37.3860, 'lon': -122.0840}
     ]
 
@@ -57,8 +41,8 @@ def theharvester_search(domain):
 
 def google_dorks_search(query):
     return [
-        {'type': 'Domain', 'value': 'example.com', 'source': 'Google Dorks'},
-        {'type': 'Domain', 'value': 'test.com', 'source': 'Google Dorks'}
+        {'type': 'Domain', 'value': f'found.by.google.{query}', 'source': 'Google Dorks'},
+        {'type': 'Domain', 'value': f'another.result.{query}', 'source': 'Google Dorks'}
     ]
 
 @app.route('/')
@@ -125,8 +109,14 @@ def export_pdf():
         html += f'<li>{f[1]}: {f[2]} (Source: {f[3]})</li>'
     html += '</ul></body></html>'
     
-    pdfkit.from_string(html, 'report.pdf')
-    return send_file('report.pdf', as_attachment=True)
+    output_filename = 'report.pdf'
+    with open(output_filename, "w+b") as pdf_file:
+        pisa_status = pisa.CreatePDF(html, dest=pdf_file)
+
+    if pisa_status.err:
+        return "Error generating PDF", 500
+        
+    return send_file(output_filename, as_attachment=True)
 
 if __name__ == '__main__':
     app.run(debug=True)
