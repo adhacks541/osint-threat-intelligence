@@ -22,15 +22,80 @@
         .dark-mode .card { background-color: #495057; color: white; }
         .spinner { display: none; }
         #heatmapFrame { border: none; width: 100%; height: 400px; }
+        /* Custom Modal Styles */
+        #custom-modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            z-index: 1060;
+            /* display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+        }
+        #custom-modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90vw; /* 90% of viewport width */
+            max-width: 1400px; /* A larger max width */
+            height: 90vh; /* 90% of viewport height */
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        #custom-modal-close {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #6c757d;
+            border: none;
+            background: none;
+            cursor: pointer;
+            line-height: 1;
+        }
+        #custom-modal-close:hover {
+            color: #343a40;
+        }
+        #detailsJson {
+            flex-grow: 1; /* Make the pre tag fill the space */
+            overflow-y: auto; /* The one and only scrollbar */
+            margin: 0;
+            margin-top: 20px; /* Space from the title/close button */
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-all;
+            border: 1px solid #dee2e6;
+        }
+        .dark-mode #custom-modal-content {
+            background-color: #343a40;
+            color: white;
+        }
+        .dark-mode #detailsJson {
+            background-color: #212529;
+            border-color: #495057;
+        }
+        .dark-mode #custom-modal-close {
+            color: #adb5bd;
+        }
+        .dark-mode #custom-modal-close:hover {
+            color: white;
+        }
     </style>
 </head>
 <body>
     <div class="sidebar">
         <h4 class="p-3"><i class="fas fa-shield-alt"></i> OSINT Dashboard</h4>
-        <a href="#collect"><i class="fas fa-search"></i> Collect Data</a>
-        <a href="#search"><i class="fas fa-filter"></i> Search Findings</a>
-        <a href="#heatmap"><i class="fas fa-map"></i> Geolocation Heatmap</a>
-        <a href="#export"><i class="fas fa-file-pdf"></i> Export Report</a>
+        <a href="/"><i class="fas fa-chart-line"></i> Dashboard</a>
+        <a href="/settings"><i class="fas fa-cog"></i> Settings</a>
         <button id="themeToggle" class="btn btn-outline-light mt-3 ms-3"><i class="fas fa-moon"></i> Dark Mode</button>
     </div>
 
@@ -58,6 +123,10 @@
                                 <option value="shodan">Shodan (IPs)</option>
                                 <option value="theharvester">theHarvester (Emails/Domains)</option>
                                 <option value="google_dorks">Google Dorks (Domains)</option>
+                                <option value="whois">WHOIS (Domain)</option>
+                                <option value="sherlock">Sherlock (Username)</option>
+                                <option value="virustotal">VirusTotal (IP/Domain)</option>
+                                <option value="censys">Censys (IP)</option>
                             </select>
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
@@ -70,6 +139,11 @@
                         </div>
                     </div>
                 </form>
+                <div class="progress mt-3" style="display: none; height: 25px;">
+                  <div id="collect-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    <span id="progress-bar-text" class="fw-bold"></span>
+                  </div>
+                </div>
             </div>
         </div>
 
@@ -79,13 +153,35 @@
                 <h5><i class="fas fa-search"></i> Search Findings</h5>
             </div>
             <div class="card-body">
-                <input type="text" class="form-control mb-3" id="searchKeyword" placeholder="Search by keyword (e.g., example)">
+                <div class="row mb-3 g-2">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="searchKeyword" placeholder="Search keyword...">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" class="form-control" id="portFilter" placeholder="Filter port...">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="date" class="form-control" id="startDate" title="Start Date">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="date" class="form-control" id="endDate" title="End Date">
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end mb-3">
+                    <button id="deleteSelected" class="btn btn-danger" disabled><i class="fas fa-trash"></i> Delete Selected</button>
+                </div>
                 <table id="findingsTable" class="table table-striped">
                     <thead>
                         <tr>
+                            <th><input type="checkbox" id="selectAll"></th>
+                            <th>Timestamp</th>
                             <th>Type</th>
                             <th>Value</th>
                             <th>Source</th>
+                            <th>ASN</th>
+                            <th>Country</th>
+                            <th>Ports</th>
+                            <th>Details</th>
                         </tr>
                     </thead>
                     <tbody id="results"></tbody>
@@ -116,11 +212,26 @@
             </div>
             <div class="card-body">
                 <p>Download a PDF report of all findings.</p>
-                <a href="/export_pdf" class="btn btn-custom">
+                <button id="exportPdfButton" class="btn btn-custom">
                     <i class="fas fa-file-pdf"></i> Download PDF
-                </a>
+                </button>
+                <div id="exportSpinner" class="spinner-border spinner-border-sm ms-2" role="status" style="display: none;">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p id="exportMessage" class="text-muted mt-2" style="display: none;">Generating report, this may take a moment...</p>
             </div>
         </div>
+    </div>
+
+
+
+    <!-- Custom Details Modal -->
+    <div id="custom-modal-backdrop" style="display:none;">
+      <div id="custom-modal-content">
+        <h5 class="modal-title">Finding Details</h5>
+        <button id="custom-modal-close">&times;</button>
+        <pre id="detailsJson"></pre>
+      </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -130,76 +241,281 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.8/dist/sweetalert2.all.min.js"></script>
     <script>
         $(document).ready(function() {
-            // Initialize tooltips
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
-
-            // Initialize DataTable
-            $('#findingsTable').DataTable({
+            var findingsTable = $('#findingsTable').DataTable({
                 paging: true,
-                searching: false, // We handle search separately
-                info: false
+                searching: false,
+                info: false,
+                order: [[ 1, "desc" ]],
+                columnDefs: [ 
+                    { orderable: false, targets: 0 },
+                    { orderable: false, targets: 8 } // Disable sorting on details column
+                ]
             });
 
-            // Dark mode toggle
-            $('#themeToggle').on('click', function() {
-                $('body').toggleClass('dark-mode');
-                $(this).find('i').toggleClass('fa-moon fa-sun');
-            });
-
-            // Collect form submission
-            $('#collectForm').on('submit', function(e) {
-                e.preventDefault();
-                $('#collectSpinner').show();
-                $.post('/collect', $(this).serialize(), function(data) {
-                    $('#collectSpinner').hide();
-                    Swal.fire('Success!', 'Data collected successfully.', 'success');
-                    loadFindings(); // Refresh table
-                    
-                    // Auto-refresh heatmap if it's visible
-                    if ($('#heatmapFrame').is(':visible')) {
-                        $('#loadHeatmap').trigger('click');
+            function initializeDateFilters() {
+                $.get('/get_date_range', function(data) {
+                    if (data.min_date && data.max_date) {
+                        $('#startDate').val(data.min_date);
+                        $('#endDate').val(data.max_date);
+                        // Set min/max attributes to guide user
+                        $('#startDate').attr('min', data.min_date).attr('max', data.max_date);
+                        $('#endDate').attr('min', data.min_date).attr('max', data.max_date);
                     }
-                }).fail(function() {
-                    $('#collectSpinner').hide();
-                    Swal.fire('Error!', 'Failed to collect data.', 'error');
-                });
-            });
-
-            // Real-time search
-            $('#searchKeyword').on('input', function() {
-                loadFindings();
-            });
-
-            // Load findings into table
-            function loadFindings() {
-                var keyword = $('#searchKeyword').val();
-                $.get('/search', {keyword: keyword}, function(data) {
-                    var table = $('#findingsTable').DataTable();
-                    table.clear();
-                    var rows = data.map(function(item) {
-                        return [item[1], item[2], item[3]];
-                    });
-                    table.rows.add(rows);
-                    table.draw();
+                }).always(function() {
+                    // Load findings after date range is set
+                    loadFindings();
                 });
             }
 
-            // Load heatmap
-            $('#loadHeatmap').on('click', function() {
+            function loadFindings() {
+                var keyword = $('#searchKeyword').val();
+                var port = $('#portFilter').val();
+                var startDate = $('#startDate').val();
+                var endDate = $('#endDate').val();
+
+                $.get('/search', {
+                    keyword: keyword,
+                    port: port,
+                    start_date: startDate,
+                    end_date: endDate
+                }, function(data) {
+                    var table = $('#findingsTable').DataTable();
+                    table.clear();
+                    data.forEach(function(item) {
+                        var details = item[10]; // Details are in the 11th column
+                        var detailsButton = '';
+                        if (details) {
+                            detailsButton = '<button class="btn btn-sm btn-info view-details">View</button>';
+                        }
+
+                        var rowNode = table.row.add([
+                            `<input type="checkbox" class="finding-checkbox" value="${item[0]}">`,
+                            item[6], // timestamp
+                            item[1], // type
+                            item[2], // value
+                            item[3], // source
+                            item[7], // asn
+                            item[8], // country
+                            item[9] || '', // ports
+                            detailsButton
+                        ]).draw(false).node();
+                        
+                        // Attach details data to the row
+                        if (details) {
+                            $(rowNode).data('details', details);
+                        }
+                    });
+                    $('#selectAll').prop('checked', false);
+                    $('#deleteSelected').prop('disabled', true);
+                });
+            }
+
+            function loadHeatmap() {
                 $('#heatmapSpinner').show();
+                var port = $('#portFilter').val();
+                var startDate = $('#startDate').val();
+                var endDate = $('#endDate').val();
                 var timestamp = new Date().getTime();
-                // Add a timestamp to prevent browser caching
-                $('#heatmapFrame').attr('src', '/heatmap?v=' + timestamp).on('load', function() {
+                var url = `/heatmap?v=${timestamp}&port=${encodeURIComponent(port)}&start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`;
+
+                $('#heatmapFrame').off('load').on('load', function() {
                     $('#heatmapSpinner').hide();
                     $(this).show();
+                }).attr('src', url);
+            }
+
+            // Event Listeners
+            var progressInterval;
+
+            $('#collectForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                // Disable button to prevent multiple submissions
+                var $submitButton = $('#collectForm button[type="submit"]');
+                $submitButton.prop('disabled', true);
+                $('#collectSpinner').show();
+
+                var $progressBar = $('#collect-progress-bar');
+                var $progressContainer = $progressBar.parent();
+                var $progressBarText = $('#progress-bar-text');
+                
+                $progressBar.removeClass('bg-danger').addClass('bg-success');
+                $progressBar.css('width', '0%').attr('aria-valuenow', 0);
+                $progressBarText.text('Starting...');
+                $progressContainer.show();
+
+                var progress = 0;
+                var slowDown = false;
+
+                // Animate the progress bar
+                progressInterval = setInterval(function() {
+                    if (!slowDown) {
+                        progress += Math.floor(Math.random() * 5) + 1; // Variable increment
+                    } else {
+                        progress += 1;
+                    }
+                    
+                    if (progress >= 90 && !slowDown) {
+                        slowDown = true;
+                    }
+                    if (progress >= 98) {
+                        progress = 98;
+                        clearInterval(progressInterval); // Stop at 98%
+                    }
+
+                    $progressBar.css('width', progress + '%').attr('aria-valuenow', progress);
+                    $progressBarText.text(slowDown ? 'Finalizing...' : 'Collecting...');
+
+                }, 400); // Main interval speed
+
+                $.post('/collect', $(this).serialize())
+                    .done(function(data) {
+                        clearInterval(progressInterval);
+                        $progressBar.css('width', '100%').attr('aria-valuenow', 100);
+                        $progressBarText.text('Success!');
+                        setTimeout(function() {
+                            Swal.fire('Success!', 'Data collected successfully.', 'success')
+                                .then(() => location.reload());
+                        }, 500);
+                    })
+                    .fail(function() {
+                        clearInterval(progressInterval);
+                        $progressBar.removeClass('bg-success').addClass('bg-danger');
+                        $progressBar.css('width', '100%').attr('aria-valuenow', 100);
+                        $progressBarText.text('Error!');
+                        setTimeout(function() {
+                            Swal.fire('Error!', 'Failed to collect data or an error occurred.', 'error');
+                            // On failure, just hide the bar and re-enable the button
+                            $progressContainer.hide();
+                            $('#collectSpinner').hide();
+                            $submitButton.prop('disabled', false);
+                        }, 1000);
+                    });
+            });
+
+            $('#searchKeyword, #portFilter, #startDate, #endDate').on('input change', function() {
+                loadFindings();
+                if ($('#heatmapFrame').is(':visible')) {
+                    loadHeatmap();
+                }
+            });
+
+            $('#loadHeatmap').on('click', loadHeatmap);
+
+            $('#selectAll').on('click', function() {
+                var rows = findingsTable.rows({ 'search': 'applied' }).nodes();
+                $('input[type="checkbox"]', rows).prop('checked', this.checked);
+                updateDeleteButtonState();
+            });
+
+            $('#findingsTable tbody').on('change', 'input[type="checkbox"]', function() {
+                updateDeleteButtonState();
+            });
+            
+            function updateDeleteButtonState() {
+                var anyChecked = $('.finding-checkbox:checked').length > 0;
+                $('#deleteSelected').prop('disabled', !anyChecked);
+            }
+
+            $('#deleteSelected').on('click', function() {
+                var selectedIds = $('.finding-checkbox:checked').map(function() { return $(this).val(); }).get();
+                if (selectedIds.length === 0) return;
+
+                Swal.fire({
+                    title: 'Are you sure?',
+                    text: `You are about to delete ${selectedIds.length} findings.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    confirmButtonText: 'Yes, delete them!'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $.ajax({
+                            url: '/delete_findings',
+                            type: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({ ids: selectedIds }),
+                            success: function(response) {
+                                Swal.fire('Deleted!', response.message, 'success');
+                                loadFindings();
+                            },
+                            error: function() {
+                                Swal.fire('Error!', 'Failed to delete findings.', 'error');
+                            }
+                        });
+                    }
                 });
             });
 
-            // Load initial findings
-            loadFindings();
+            // Add click handler for the details button
+            $('#findingsTable tbody').on('click', '.view-details', function () {
+                var row = $(this).closest('tr');
+                var detailsData = $(row).data('details');
+                if (detailsData) {
+                    var formattedOutput;
+                    try {
+                        // Try to parse and pretty-print as JSON
+                        formattedOutput = JSON.stringify(JSON.parse(detailsData), null, 2);
+                    } catch (e) {
+                        // If it's not JSON, just use the raw text
+                        formattedOutput = detailsData;
+                    }
+                    $('#detailsJson').text(formattedOutput);
+                    // Use jQuery to show the custom modal
+                    $('#custom-modal-backdrop').css('display', 'flex'); 
+                }
+            });
+
+            // Add click handler for the custom close button
+            $('#custom-modal-close').on('click', function() {
+                $('#custom-modal-backdrop').hide();
+            });
+
+            // Also allow clicking on the backdrop to close the modal
+            $('#custom-modal-backdrop').on('click', function(e) {
+                if (e.target === this) {
+                    $(this).hide();
+                }
+            });
+
+            // Initial Load
+            initializeDateFilters();
+
+            $('#exportPdfButton').on('click', function() {
+                var $button = $(this);
+                var $spinner = $('#exportSpinner');
+                var $message = $('#exportMessage');
+
+                $button.prop('disabled', true);
+                $spinner.show();
+                $message.show();
+
+                $.ajax({
+                    url: '/export_pdf',
+                    method: 'GET',
+                    xhrFields: {
+                        responseType: 'blob' // We expect binary data
+                    },
+                    success: function (blob) {
+                        var url = window.URL.createObjectURL(blob);
+                        var a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'report.pdf';
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        window.URL.revokeObjectURL(url);
+                    },
+                    error: function () {
+                        Swal.fire('Error!', 'Failed to generate the report.', 'error');
+                    },
+                    complete: function () {
+                        $button.prop('disabled', false);
+                        $spinner.hide();
+                        $message.hide();
+                    }
+                });
+            });
         });
     </script>
 </body>

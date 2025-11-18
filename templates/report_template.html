@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>OSINT Report</title>
+    <style>
+        @page {
+            size: a4 portrait;
+            @frame header_frame {
+                -pdf-frame-content: header_content;
+                left: 50pt; right: 50pt; top: 50pt; height: 50pt;
+            }
+            @frame content_frame {
+                left: 50pt; right: 50pt; top: 100pt; bottom: 50pt;
+            }
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                left: 50pt; right: 50pt; bottom: 20pt; height: 20pt;
+            }
+        }
+        body {
+            font-family: "Helvetica", "Arial", sans-serif;
+            color: #333;
+        }
+        .cover-page {
+            text-align: center;
+        }
+        .cover-page h1 {
+            font-size: 36px;
+            margin-top: 4cm;
+            color: #2c3e50;
+        }
+        .cover-page h3 {
+            font-size: 20px;
+            color: #7f8c8d;
+        }
+        .page-break {
+            page-break-before: always;
+        }
+        #header_content {
+            text-align: right;
+            font-size: 10px;
+            color: #7f8c8d;
+        }
+        #footer_content {
+            text-align: right;
+            font-size: 10px;
+        }
+        h2 {
+            font-size: 24px;
+            color: #2c3e50;
+            border-bottom: 2px solid #bdc3c7;
+            padding-bottom: 5px;
+        }
+        .finding {
+            margin-bottom: 20px;
+            border: 1px solid #ecf0f1;
+            border-radius: 5px;
+            padding: 15px;
+            background-color: #fdfdfd;
+        }
+        .finding-summary {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .finding-meta {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-bottom: 15px;
+        }
+        pre {
+            background-color: #ecf0f1;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .heatmap-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .heatmap-container img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="header_content">
+        OSINT Threat Intelligence Report
+    </div>
+    <div id="footer_content">
+        Page <pdf:pagenumber /> of <pdf:pagecount />
+    </div>
+
+    <div class="cover-page">
+        <h1>OSINT Report</h1>
+        <h3>Generated on: {{ generation_date }}</h3>
+    </div>
+
+    <div class="page-break"></div>
+
+    <h2>Summary of Findings</h2>
+    <ul>
+        {% for finding in findings %}
+            <li><strong>{{ finding.type }} ({{ finding.source }}):</strong> {{ finding.value }}</li>
+        {% endfor %}
+    </ul>
+
+    {% if heatmap_path %}
+    <div class="heatmap-container">
+        <h2>Geolocation Heatmap</h2>
+        <img src="{{ heatmap_path }}">
+    </div>
+    {% endif %}
+
+    <div class="page-break"></div>
+
+    <h2>Detailed Findings</h2>
+    {% for finding in findings %}
+        <div class="finding">
+            <div class="finding-summary">
+                {{ finding.type }} from {{ finding.source }}
+            </div>
+            <div class="finding-meta">
+                <strong>Timestamp:</strong> {{ finding.timestamp }} <br>
+                <strong>Value:</strong> {{ finding.value }}
+            </div>
+            {% if finding.details %}
+                <pre>{{ finding.details }}</pre>
+            {% else %}
+                <p>No further details available.</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+</body>
+</html>

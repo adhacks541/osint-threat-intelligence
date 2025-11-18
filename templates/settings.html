@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - OSINT Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.8/dist/sweetalert2.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; }
+        .sidebar { height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; position: fixed; width: 250px; }
+        .sidebar a { color: white; text-decoration: none; padding: 15px; display: block; }
+        .sidebar a:hover { background: rgba(255,255,255,0.1); }
+        .main-content { margin-left: 250px; padding: 20px; }
+        .card { border: none; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .btn-custom { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; }
+        .btn-custom:hover { background: linear-gradient(135deg, #764ba2 0%, #667eea 100%); }
+        .dark-mode { background-color: #343a40; color: white; }
+        .dark-mode .card { background-color: #495057; color: white; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h4 class="p-3"><i class="fas fa-shield-alt"></i> OSINT Dashboard</h4>
+        <a href="/"><i class="fas fa-chart-line"></i> Dashboard</a>
+        <a href="/settings"><i class="fas fa-cog"></i> Settings</a>
+        <button id="themeToggle" class="btn btn-outline-light mt-3 ms-3"><i class="fas fa-moon"></i> Dark Mode</button>
+    </div>
+
+    <div class="main-content">
+        <h1 class="mb-4"><i class="fas fa-cog"></i> Settings</h1>
+
+        <!-- API Key Management -->
+        <div id="api-keys" class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-key"></i> API Key Management</h5>
+            </div>
+            <div class="card-body">
+                <form id="settingsForm">
+                    <div class="mb-3">
+                        <label for="shodanApiKey" class="form-label">Shodan API Key</label>
+                        <input type="password" class="form-control" id="shodanApiKey" name="shodan_api_key">
+                    </div>
+                    <div class="mb-3">
+                        <label for="googleApiKey" class="form-label">Google API Key</label>
+                        <input type="password" class="form-control" id="googleApiKey" name="google_api_key">
+                    </div>
+                    <div class="mb-3">
+                        <label for="googleCseId" class="form-label">Google Programmable Search Engine ID</label>
+                        <input type="text" class="form-control" id="googleCseId" name="google_cse_id">
+                    </div>
+                    <div class="mb-3">
+                        <label for="virustotalApiKey" class="form-label">VirusTotal API Key</label>
+                        <input type="password" class="form-control" id="virustotalApiKey" name="virustotal_api_key">
+                    </div>
+                    <div class="mb-3">
+                        <label for="censysApiId" class="form-label">Censys Personal Access Token</label>
+                        <input type="password" class="form-control" id="censysApiId" name="censys_api_id">
+                    </div>
+                    <button type="submit" class="btn btn-custom">
+                        <i class="fas fa-save"></i> Save Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Database Management -->
+        <div id="database" class="card">
+            <div class="card-header bg-danger text-white">
+                <h5><i class="fas fa-database"></i> Database Management</h5>
+            </div>
+            <div class="card-body">
+                <p>Permanently delete all collected findings from the database.</p>
+                <button id="cleanDbButton" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Clean Database
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.8/dist/sweetalert2.all.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Dark mode toggle
+            $('#themeToggle').on('click', function() {
+                $('body').toggleClass('dark-mode');
+                $(this).find('i').toggleClass('fa-moon fa-sun');
+            });
+
+            // Load existing settings
+            $.get('/get_settings', function(data) {
+                if (data.shodan_api_key) {
+                    $('#shodanApiKey').val(data.shodan_api_key);
+                }
+                if (data.google_api_key) {
+                    $('#googleApiKey').val(data.google_api_key);
+                }
+                if (data.google_cse_id) {
+                    $('#googleCseId').val(data.google_cse_id);
+                }
+                if (data.virustotal_api_key) {
+                    $('#virustotalApiKey').val(data.virustotal_api_key);
+                }
+                if (data.censys_api_id) {
+                    $('#censysApiId').val(data.censys_api_id);
+                }
+                if (data.censys_api_secret) {
+                    $('#censysApiSecret').val(data.censys_api_secret);
+                }
+            });
+
+            // Save settings
+            $('#settingsForm').on('submit', function(e) {
+                e.preventDefault();
+                $.post('/save_settings', $(this).serialize(), function(response) {
+                    Swal.fire('Success!', response.message, 'success');
+                }).fail(function() {
+                    Swal.fire('Error!', 'Failed to save settings.', 'error');
+                });
+            });
+
+            // Clean database
+            $('#cleanDbButton').on('click', function() {
+                Swal.fire({
+                    title: 'Are you sure?',
+                    text: "This will permanently delete all findings!",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Yes, delete it!'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $.post('/clean_db', function(response) {
+                            Swal.fire('Deleted!', response.message, 'success');
+                        }).fail(function() {
+                            Swal.fire('Error!', 'Failed to clean database.', 'error');
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
