@@ -9,116 +9,268 @@
     <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.8/dist/sweetalert2.min.css" rel="stylesheet">
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; }
-        .sidebar { height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; position: fixed; width: 250px; }
-        .sidebar a { color: white; text-decoration: none; padding: 15px; display: block; }
-        .sidebar a:hover { background: rgba(255,255,255,0.1); }
-        .main-content { margin-left: 250px; padding: 20px; }
-        .card { border: none; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: transform 0.2s; }
-        .card:hover { transform: translateY(-5px); }
-        .btn-custom { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; }
-        .btn-custom:hover { background: linear-gradient(135deg, #764ba2 0%, #667eea 100%); }
-        .dark-mode { background-color: #343a40; color: white; }
-        .dark-mode .card { background-color: #495057; color: white; }
-        .spinner { display: none; }
-        #heatmapFrame { border: none; width: 100%; height: 400px; }
-        /* Custom Modal Styles */
+        /* --- Theme Color Palettes --- */
+        :root {
+            --bg-color: #f4f6f9;
+            --text-color: #212529;
+            --card-bg: #ffffff;
+            --sidebar-bg: #ffffff;
+            --border-color: #dee2e6;
+            --accent-gold: #B8860B;
+            --accent-maroon: #800000;
+            --button-text: #ffffff;
+            --monospace-font: 'Courier New', Courier, monospace;
+            --sidebar-width: 250px;
+            --sidebar-collapsed-width: 60px;
+        }
+        .dark-mode {
+            --bg-color: #16181a;
+            --text-color: #e0e0e0;
+            --card-bg: #212529;
+            --sidebar-bg: #212529;
+            --border-color: #444;
+        }
+
+        /* --- General & Layout --- */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .main-content { 
+            margin-left: var(--sidebar-width); 
+            padding: 20px;
+            transition: margin-left 0.3s ease;
+        }
+        h1, h2, h3, h4, h5 {
+            color: var(--accent-maroon);
+            letter-spacing: 0.5px;
+        }
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        /* --- Sidebar --- */
+        .sidebar { 
+            height: 100vh; 
+            background: var(--sidebar-bg); 
+            position: fixed; 
+            width: var(--sidebar-width);
+            border-right: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+        .sidebar a { 
+            color: var(--text-color); 
+            text-decoration: none; 
+            padding: 15px 20px; 
+            display: flex;
+            align-items: center;
+            transition: background-color 0.2s ease, color 0.2s ease;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        .sidebar a i {
+            margin-right: 15px;
+            width: 20px; /* Fixed width for icons */
+            text-align: center;
+        }
+        .sidebar a:hover {
+            background: var(--accent-gold);
+            color: var(--button-text);
+        }
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* --- Collapsed Sidebar Specifics --- */
+        .sidebar.collapsed {
+            width: var(--sidebar-collapsed-width);
+        }
+        .sidebar.collapsed .sidebar-header h4 {
+            padding: 1rem;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+        .sidebar.collapsed .sidebar-header h4 span, .sidebar.collapsed a span {
+            display: none;
+        }
+        .sidebar.collapsed a {
+            justify-content: center;
+            padding: 15px 0;
+        }
+        .sidebar.collapsed a i, .sidebar.collapsed .sidebar-header i {
+            margin-right: 0;
+        }
+        .sidebar.collapsed .sidebar-footer {
+            padding: 15px 10px;
+        }
+        .sidebar.collapsed #sidebar-toggle i {
+            transform: rotate(180deg);
+        }
+        .main-content.collapsed {
+            margin-left: var(--sidebar-collapsed-width);
+        }
+
+        /* --- UI Elements --- */
+        .card { 
+            border: 1px solid var(--border-color); 
+            background-color: var(--card-bg);
+            box-shadow: none;
+            border-radius: 4px;
+        }
+        .card-header {
+            background-color: transparent;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .collection-bar .card-body {
+            padding: 1rem;
+        }
+        .btn-custom { 
+            background: var(--accent-maroon); 
+            border: 1px solid var(--accent-maroon);
+            color: var(--button-text);
+            font-weight: bold;
+            border-radius: 2px;
+        }
+        .btn-custom:hover { 
+            background: var(--accent-gold);
+            border-color: var(--accent-gold);
+            color: var(--button-text);
+        }
+        .form-control, .form-select {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid #6c757d;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 5px var(--accent-gold);
+        }
+        .table-hover > tbody > tr {
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .table-hover > tbody > tr:hover > * {
+            background-color: rgba(184, 134, 11, 0.1); /* Gold tint on hover */
+        }
+        .nav-tabs .nav-link {
+            color: var(--text-color);
+            border: none;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-tabs .nav-link.active {
+            color: var(--accent-maroon);
+            background-color: transparent;
+            border-bottom: 2px solid var(--accent-maroon);
+        }
+        
+        /* --- Custom Modal --- */
         #custom-modal-backdrop {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.6);
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.7);
             z-index: 1060;
-            /* display: none; /* Hidden by default */
+            display: none;
             justify-content: center;
             align-items: center;
         }
         #custom-modal-content {
-            background-color: white;
+            background-color: var(--card-bg);
+            color: var(--text-color);
             padding: 20px;
-            border-radius: 8px;
-            width: 90vw; /* 90% of viewport width */
-            max-width: 1400px; /* A larger max width */
-            height: 90vh; /* 90% of viewport height */
+            border-radius: 4px;
+            border: 1px solid var(--accent-gold);
+            width: 90vw;
+            max-width: 1400px;
+            height: 90vh;
             position: relative;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            box-shadow: 0 0 25px rgba(212, 175, 55, 0.2);
         }
         #custom-modal-close {
-            position: absolute;
-            top: 10px;
-            right: 20px;
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #6c757d;
-            border: none;
-            background: none;
-            cursor: pointer;
-            line-height: 1;
+            position: absolute; top: 10px; right: 20px;
+            font-size: 2.5rem; font-weight: bold; color: #6c757d;
+            border: none; background: none; cursor: pointer;
         }
-        #custom-modal-close:hover {
-            color: #343a40;
-        }
+        #custom-modal-close:hover { color: var(--accent-gold); }
         #detailsJson {
-            flex-grow: 1; /* Make the pre tag fill the space */
-            overflow-y: auto; /* The one and only scrollbar */
-            margin: 0;
-            margin-top: 20px; /* Space from the title/close button */
-            background-color: #f8f9fa;
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-top: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             padding: 20px;
             border-radius: 5px;
             line-height: 1.6;
             white-space: pre-wrap;
             word-break: break-all;
-            border: 1px solid #dee2e6;
+            border: 1px solid var(--border-color);
+            font-family: var(--monospace-font);
         }
-        .dark-mode #custom-modal-content {
-            background-color: #343a40;
-            color: white;
+
+        /* --- Dark Mode Specifics --- */
+        .dark-mode .table {
+            color: var(--text-color);
         }
-        .dark-mode #detailsJson {
-            background-color: #212529;
-            border-color: #495057;
+        .dark-mode .table-striped > tbody > tr:nth-of-type(odd) > * {
+            --bs-table-accent-bg: rgba(212, 175, 55, 0.05); /* Subtle Gold tint */
         }
-        .dark-mode #custom-modal-close {
-            color: #adb5bd;
+        .dark-mode .dataTables_paginate .page-link {
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
         }
-        .dark-mode #custom-modal-close:hover {
-            color: white;
+        .dark-mode .dataTables_paginate .page-link:hover {
+            background-color: #333;
+            color: var(--accent-gold);
+            border-color: var(--border-color);
+        }
+        .dark-mode .page-item.active .page-link {
+            background-color: var(--accent-gold);
+            color: var(--button-text);
+            border-color: var(--accent-gold);
+        }
+        .dark-mode .page-item.disabled .page-link {
+            background-color: transparent;
+            color: #6c757d;
+            border-color: var(--border-color);
         }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <h4 class="p-3"><i class="fas fa-shield-alt"></i> OSINT Dashboard</h4>
-        <a href="/"><i class="fas fa-chart-line"></i> Dashboard</a>
-        <a href="/settings"><i class="fas fa-cog"></i> Settings</a>
-        <button id="themeToggle" class="btn btn-outline-light mt-3 ms-3"><i class="fas fa-moon"></i> Dark Mode</button>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h4 class="p-3"><i class="fas fa-shield-alt"></i> <span>OSINT</span></h4>
+        </div>
+        <a href="/"><i class="fas fa-chart-line"></i> <span>Dashboard</span></a>
+        <a href="/settings"><i class="fas fa-cog"></i> <span>Settings</span></a>
+        <div class="sidebar-footer">
+            <button id="themeToggle" class="btn btn-outline-secondary w-100 mb-2" title="Toggle Theme"><i class="fas fa-moon"></i></button>
+            <button id="sidebar-toggle" class="btn btn-outline-secondary w-100" title="Toggle Sidebar"><i class="fas fa-angle-double-left"></i></button>
+        </div>
     </div>
 
-    <div class="main-content">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1><i class="fas fa-chart-line"></i> Threat Intelligence Dashboard</h1>
-            <small class="text-muted">Powered by OSINT Tools</small>
-        </div>
-
-        <!-- Data Collection -->
-        <div id="collect" class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h5><i class="fas fa-plus-circle"></i> Collect OSINT Data</h5>
-            </div>
+    <div class="main-content" id="main-content">
+        <!-- Collection Bar -->
+        <div class="card collection-bar">
             <div class="card-body">
                 <form id="collectForm">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <label for="query" class="form-label">Query <i class="fas fa-info-circle" data-bs-toggle="tooltip" title="Enter a domain, IP, or search term"></i></label>
+                    <div class="row align-items-end">
+                        <div class="col-md-5">
+                            <label for="query" class="form-label small">Query</label>
                             <input type="text" class="form-control" id="query" name="query" required>
                         </div>
                         <div class="col-md-4">
-                            <label for="tool" class="form-label">Tool</label>
+                            <label for="tool" class="form-label small">Tool</label>
                             <select class="form-select" id="tool" name="tool">
                                 <option value="shodan">Shodan (IPs)</option>
                                 <option value="theharvester">theHarvester (Emails/Domains)</option>
@@ -129,104 +281,91 @@
                                 <option value="censys">Censys (IP)</option>
                             </select>
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
+                        <div class="col-md-3">
                             <button type="submit" class="btn btn-custom w-100">
                                 <i class="fas fa-play"></i> Collect
-                                <div class="spinner-border spinner-border-sm ms-2" role="status" id="collectSpinner">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
                             </button>
                         </div>
                     </div>
                 </form>
-                <div class="progress mt-3" style="display: none; height: 25px;">
-                  <div id="collect-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <span id="progress-bar-text" class="fw-bold"></span>
-                  </div>
+                <div class="progress mt-2" style="display: none; height: 5px;">
+                  <div id="collect-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%;"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Search Findings -->
-        <div id="search" class="card mb-4">
-            <div class="card-header bg-success text-white">
-                <h5><i class="fas fa-search"></i> Search Findings</h5>
+        <!-- Tabbed Interface -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" id="main-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="findings-tab" data-bs-toggle="tab" data-bs-target="#findings" type="button" role="tab" aria-controls="findings" aria-selected="true">Findings</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="heatmap-tab" data-bs-toggle="tab" data-bs-target="#heatmap" type="button" role="tab" aria-controls="heatmap" aria-selected="false">Heatmap</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="report-tab" data-bs-toggle="tab" data-bs-target="#report" type="button" role="tab" aria-controls="report" aria-selected="false">Report</button>
+                    </li>
+                </ul>
             </div>
             <div class="card-body">
-                <div class="row mb-3 g-2">
-                    <div class="col-md-4">
-                        <input type="text" class="form-control" id="searchKeyword" placeholder="Search keyword...">
+                <div class="tab-content" id="main-tabs-content">
+                    <div class="tab-pane fade show active" id="findings" role="tabpanel" aria-labelledby="findings-tab">
+                        <div class="row mb-3 g-2">
+                            <div class="col-md-4">
+                                <input type="text" class="form-control" id="searchKeyword" placeholder="Search keyword...">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="text" class="form-control" id="portFilter" placeholder="Filter port...">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="date" class="form-control" id="startDate" title="Start Date">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="date" class="form-control" id="endDate" title="End Date">
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-end mb-3">
+                            <button id="deleteSelected" class="btn btn-danger" disabled title="Delete Selected"><i class="fas fa-trash"></i></button>
+                        </div>
+                        <div class="table-responsive">
+                            <table id="findingsTable" class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th><input type="checkbox" id="selectAll"></th>
+                                        <th>Timestamp</th>
+                                        <th>Type</th>
+                                        <th>Value</th>
+                                        <th>Source</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="results"></tbody>
+                            </table>
+                        </div>
                     </div>
-                    <div class="col-md-2">
-                        <input type="text" class="form-control" id="portFilter" placeholder="Filter port...">
+                    <div class="tab-pane fade" id="heatmap" role="tabpanel" aria-labelledby="heatmap-tab">
+                        <p class="text-muted small">Date and port filters from the 'Findings' tab will apply to the heatmap.</p>
+                        <button id="loadHeatmap" class="btn btn-custom mb-3">
+                            <i class="fas fa-map-marker-alt"></i> Generate Heatmap
+                        </button>
+                        <iframe id="heatmapFrame" class="w-100" style="height: 60vh; border: none;"></iframe>
                     </div>
-                    <div class="col-md-3">
-                        <input type="date" class="form-control" id="startDate" title="Start Date">
-                    </div>
-                    <div class="col-md-3">
-                        <input type="date" class="form-control" id="endDate" title="End Date">
+                    <div class="tab-pane fade" id="report" role="tabpanel" aria-labelledby="report-tab">
+                        <p>Generate a comprehensive PDF report of all findings.</p>
+                        <button id="exportPdfButton" class="btn btn-custom">
+                            <i class="fas fa-file-pdf"></i> Download PDF Report
+                        </button>
+                        <div id="exportSpinner" class="spinner-border spinner-border-sm ms-2" role="status" style="display: none;"></div>
+                        <p id="exportMessage" class="text-muted mt-2" style="display: none;">Generating report, this may take a moment...</p>
                     </div>
                 </div>
-                <div class="d-flex justify-content-end mb-3">
-                    <button id="deleteSelected" class="btn btn-danger" disabled><i class="fas fa-trash"></i> Delete Selected</button>
-                </div>
-                <table id="findingsTable" class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th><input type="checkbox" id="selectAll"></th>
-                            <th>Timestamp</th>
-                            <th>Type</th>
-                            <th>Value</th>
-                            <th>Source</th>
-                            <th>ASN</th>
-                            <th>Country</th>
-                            <th>Ports</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody id="results"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Geolocation Heatmap -->
-        <div id="heatmap" class="card mb-4">
-            <div class="card-header bg-info text-white">
-                <h5><i class="fas fa-globe"></i> Geolocation Heatmap</h5>
-            </div>
-            <div class="card-body">
-                <button id="loadHeatmap" class="btn btn-custom mb-3">
-                    <i class="fas fa-map-marker-alt"></i> Load Heatmap
-                    <div class="spinner-border spinner-border-sm ms-2" role="status" id="heatmapSpinner">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                </button>
-                <iframe id="heatmapFrame" style="display:none;"></iframe>
-            </div>
-        </div>
-
-        <!-- Export Report -->
-        <div id="export" class="card">
-            <div class="card-header bg-warning text-dark">
-                <h5><i class="fas fa-download"></i> Export Report</h5>
-            </div>
-            <div class="card-body">
-                <p>Download a PDF report of all findings.</p>
-                <button id="exportPdfButton" class="btn btn-custom">
-                    <i class="fas fa-file-pdf"></i> Download PDF
-                </button>
-                <div id="exportSpinner" class="spinner-border spinner-border-sm ms-2" role="status" style="display: none;">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p id="exportMessage" class="text-muted mt-2" style="display: none;">Generating report, this may take a moment...</p>
             </div>
         </div>
     </div>
 
-
-
     <!-- Custom Details Modal -->
-    <div id="custom-modal-backdrop" style="display:none;">
+    <div id="custom-modal-backdrop">
       <div id="custom-modal-content">
         <h5 class="modal-title">Finding Details</h5>
         <button id="custom-modal-close">&times;</button>
@@ -241,33 +380,26 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.8/dist/sweetalert2.all.min.js"></script>
     <script>
         $(document).ready(function() {
+            // --- Initialization ---
             var findingsTable = $('#findingsTable').DataTable({
-                paging: true,
-                searching: false,
-                info: false,
-                order: [[ 1, "desc" ]],
-                columnDefs: [ 
-                    { orderable: false, targets: 0 },
-                    { orderable: false, targets: 8 } // Disable sorting on details column
-                ]
+                "paging": true,
+                "searching": false,
+                "info": false,
+                "order": [[ 1, "desc" ]],
+                "columnDefs": [ 
+                    { "orderable": false, "targets": 0 }
+                ],
+                "createdRow": function( row, data, dataIndex ) {
+                    // The full data object for the row is stored in the 'data' parameter.
+                    // We need to find the original full object from the initial AJAX call.
+                    // This requires a bit of a workaround since DataTables works with array data.
+                    // We will store the details data directly on the row element.
+                }
             });
 
-            function initializeDateFilters() {
-                $.get('/get_date_range', function(data) {
-                    if (data.min_date && data.max_date) {
-                        $('#startDate').val(data.min_date);
-                        $('#endDate').val(data.max_date);
-                        // Set min/max attributes to guide user
-                        $('#startDate').attr('min', data.min_date).attr('max', data.max_date);
-                        $('#endDate').attr('min', data.min_date).attr('max', data.max_date);
-                    }
-                }).always(function() {
-                    // Load findings after date range is set
-                    loadFindings();
-                });
-            }
-
+            // --- Data Loading ---
             function loadFindings() {
+                // ... (search filters)
                 var keyword = $('#searchKeyword').val();
                 var port = $('#portFilter').val();
                 var startDate = $('#startDate').val();
@@ -283,24 +415,16 @@
                     table.clear();
                     data.forEach(function(item) {
                         var details = item[10]; // Details are in the 11th column
-                        var detailsButton = '';
-                        if (details) {
-                            detailsButton = '<button class="btn btn-sm btn-info view-details">View</button>';
-                        }
-
+                        
                         var rowNode = table.row.add([
                             `<input type="checkbox" class="finding-checkbox" value="${item[0]}">`,
                             item[6], // timestamp
                             item[1], // type
                             item[2], // value
-                            item[3], // source
-                            item[7], // asn
-                            item[8], // country
-                            item[9] || '', // ports
-                            detailsButton
+                            item[3]  // source
                         ]).draw(false).node();
                         
-                        // Attach details data to the row
+                        // Attach details data to the row for the click handler
                         if (details) {
                             $(rowNode).data('details', details);
                         }
@@ -310,192 +434,154 @@
                 });
             }
 
-            function loadHeatmap() {
-                $('#heatmapSpinner').show();
-                var port = $('#portFilter').val();
-                var startDate = $('#startDate').val();
-                var endDate = $('#endDate').val();
-                var timestamp = new Date().getTime();
-                var url = `/heatmap?v=${timestamp}&port=${encodeURIComponent(port)}&start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`;
-
-                $('#heatmapFrame').off('load').on('load', function() {
-                    $('#heatmapSpinner').hide();
-                    $(this).show();
-                }).attr('src', url);
+            function initializeDateFilters() {
+                $.get('/get_date_range', function(data) {
+                    if (data.min_date && data.max_date) {
+                        $('#startDate').val(data.min_date);
+                        $('#endDate').val(data.max_date);
+                    }
+                }).always(function() {
+                    loadFindings();
+                });
             }
 
-            // Event Listeners
-            var progressInterval;
+            // --- Event Handlers ---
 
+            // Sidebar Toggle
+            $('#sidebar-toggle').on('click', function() {
+                $('#sidebar').toggleClass('collapsed');
+                $('#main-content').toggleClass('collapsed');
+            });
+
+            // Theme Toggling
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    $('body').addClass('dark-mode');
+                    $('#themeToggle i').removeClass('fa-moon').addClass('fa-sun');
+                } else {
+                    $('body').removeClass('dark-mode');
+                    $('#themeToggle i').removeClass('fa-sun').addClass('fa-moon');
+                }
+            }
+            $('#themeToggle').on('click', function() {
+                var isDark = $('body').hasClass('dark-mode');
+                var newTheme = isDark ? 'light' : 'dark';
+                applyTheme(newTheme);
+                localStorage.setItem('theme', newTheme);
+            });
+
+            // Collection Form
+            var progressInterval;
             $('#collectForm').on('submit', function(e) {
                 e.preventDefault();
-                
-                // Disable button to prevent multiple submissions
-                var $submitButton = $('#collectForm button[type="submit"]');
+                var $submitButton = $(this).find('button[type="submit"]');
                 $submitButton.prop('disabled', true);
-                $('#collectSpinner').show();
-
                 var $progressBar = $('#collect-progress-bar');
                 var $progressContainer = $progressBar.parent();
-                var $progressBarText = $('#progress-bar-text');
-                
-                $progressBar.removeClass('bg-danger').addClass('bg-success');
-                $progressBar.css('width', '0%').attr('aria-valuenow', 0);
-                $progressBarText.text('Starting...');
+                $progressBar.css('width', '0%').removeClass('bg-danger').addClass('bg-success');
                 $progressContainer.show();
-
-                var progress = 0;
-                var slowDown = false;
-
-                // Animate the progress bar
-                progressInterval = setInterval(function() {
-                    if (!slowDown) {
-                        progress += Math.floor(Math.random() * 5) + 1; // Variable increment
-                    } else {
-                        progress += 1;
+                progressInterval = setInterval(() => {
+                    let currentWidth = parseFloat($progressBar.css('width')) / $progressBar.parent().width() * 100;
+                    if (currentWidth < 95) {
+                        $progressBar.css('width', (currentWidth + 2) + '%');
                     }
-                    
-                    if (progress >= 90 && !slowDown) {
-                        slowDown = true;
-                    }
-                    if (progress >= 98) {
-                        progress = 98;
-                        clearInterval(progressInterval); // Stop at 98%
-                    }
-
-                    $progressBar.css('width', progress + '%').attr('aria-valuenow', progress);
-                    $progressBarText.text(slowDown ? 'Finalizing...' : 'Collecting...');
-
-                }, 400); // Main interval speed
+                }, 200);
 
                 $.post('/collect', $(this).serialize())
-                    .done(function(data) {
-                        clearInterval(progressInterval);
-                        $progressBar.css('width', '100%').attr('aria-valuenow', 100);
-                        $progressBarText.text('Success!');
-                        setTimeout(function() {
-                            Swal.fire('Success!', 'Data collected successfully.', 'success')
-                                .then(() => location.reload());
-                        }, 500);
+                    .done(() => {
+                        Swal.fire('Success!', 'Data collected successfully.', 'success').then(() => location.reload());
                     })
-                    .fail(function() {
-                        clearInterval(progressInterval);
+                    .fail(() => {
                         $progressBar.removeClass('bg-success').addClass('bg-danger');
-                        $progressBar.css('width', '100%').attr('aria-valuenow', 100);
-                        $progressBarText.text('Error!');
-                        setTimeout(function() {
-                            Swal.fire('Error!', 'Failed to collect data or an error occurred.', 'error');
-                            // On failure, just hide the bar and re-enable the button
+                        Swal.fire('Error!', 'Failed to collect data.', 'error');
+                    })
+                    .always(() => {
+                        clearInterval(progressInterval);
+                        $progressBar.css('width', '100%');
+                        setTimeout(() => {
                             $progressContainer.hide();
-                            $('#collectSpinner').hide();
                             $submitButton.prop('disabled', false);
                         }, 1000);
                     });
             });
 
-            $('#searchKeyword, #portFilter, #startDate, #endDate').on('input change', function() {
-                loadFindings();
-                if ($('#heatmapFrame').is(':visible')) {
-                    loadHeatmap();
+            // Findings Table Row Click for Details
+            $('#findingsTable tbody').on('click', 'tr', function(event) {
+                if ($(event.target).is('input:checkbox')) {
+                    return;
+                }
+                var detailsData = $(this).data('details');
+                if (detailsData) {
+                    var formattedOutput;
+                    try {
+                        formattedOutput = JSON.stringify(JSON.parse(detailsData), null, 2);
+                    } catch (e) {
+                        formattedOutput = detailsData;
+                    }
+                    $('#detailsJson').text(formattedOutput);
+                    $('#custom-modal-backdrop').css('display', 'flex');
                 }
             });
-
-            $('#loadHeatmap').on('click', loadHeatmap);
-
+            
+            // Other Table Interactions (Checkboxes, Delete)
             $('#selectAll').on('click', function() {
                 var rows = findingsTable.rows({ 'search': 'applied' }).nodes();
                 $('input[type="checkbox"]', rows).prop('checked', this.checked);
                 updateDeleteButtonState();
             });
-
             $('#findingsTable tbody').on('change', 'input[type="checkbox"]', function() {
                 updateDeleteButtonState();
             });
-            
             function updateDeleteButtonState() {
-                var anyChecked = $('.finding-checkbox:checked').length > 0;
-                $('#deleteSelected').prop('disabled', !anyChecked);
+                $('#deleteSelected').prop('disabled', !$('.finding-checkbox:checked').length > 0);
             }
-
             $('#deleteSelected').on('click', function() {
                 var selectedIds = $('.finding-checkbox:checked').map(function() { return $(this).val(); }).get();
                 if (selectedIds.length === 0) return;
-
                 Swal.fire({
-                    title: 'Are you sure?',
-                    text: `You are about to delete ${selectedIds.length} findings.`,
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#d33',
+                    title: 'Are you sure?', text: `You are about to delete ${selectedIds.length} findings.`,
+                    icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33',
                     confirmButtonText: 'Yes, delete them!'
                 }).then((result) => {
                     if (result.isConfirmed) {
                         $.ajax({
-                            url: '/delete_findings',
-                            type: 'POST',
-                            contentType: 'application/json',
+                            url: '/delete_findings', type: 'POST', contentType: 'application/json',
                             data: JSON.stringify({ ids: selectedIds }),
-                            success: function(response) {
-                                Swal.fire('Deleted!', response.message, 'success');
-                                loadFindings();
-                            },
-                            error: function() {
-                                Swal.fire('Error!', 'Failed to delete findings.', 'error');
-                            }
+                            success: (response) => { Swal.fire('Deleted!', response.message, 'success'); loadFindings(); },
+                            error: () => Swal.fire('Error!', 'Failed to delete findings.', 'error')
                         });
                     }
                 });
             });
 
-            // Add click handler for the details button
-            $('#findingsTable tbody').on('click', '.view-details', function () {
-                var row = $(this).closest('tr');
-                var detailsData = $(row).data('details');
-                if (detailsData) {
-                    var formattedOutput;
-                    try {
-                        // Try to parse and pretty-print as JSON
-                        formattedOutput = JSON.stringify(JSON.parse(detailsData), null, 2);
-                    } catch (e) {
-                        // If it's not JSON, just use the raw text
-                        formattedOutput = detailsData;
-                    }
-                    $('#detailsJson').text(formattedOutput);
-                    // Use jQuery to show the custom modal
-                    $('#custom-modal-backdrop').css('display', 'flex'); 
+            // Filter event handler
+            $('#searchKeyword, #portFilter, #startDate, #endDate').on('input change', function() {
+                loadFindings();
+                // If heatmap tab is active, refresh it
+                if ($('#heatmap-tab').hasClass('active')) {
+                    // A small delay to allow table to filter first if needed, though not strictly necessary here
+                    setTimeout(() => { $('#loadHeatmap').trigger('click'); }, 100);
                 }
             });
 
-            // Add click handler for the custom close button
-            $('#custom-modal-close').on('click', function() {
-                $('#custom-modal-backdrop').hide();
+            // Modal Close Handlers
+            $('#custom-modal-close').on('click', () => $('#custom-modal-backdrop').hide());
+            $('#custom-modal-backdrop').on('click', function(e) { if (e.target === this) $(this).hide(); });
+
+            // Heatmap & Report Tab Handlers
+            $('#loadHeatmap').on('click', function() {
+                var url = `/heatmap?v=${new Date().getTime()}&port=${encodeURIComponent($('#portFilter').val())}&start_date=${encodeURIComponent($('#startDate').val())}&end_date=${encodeURIComponent($('#endDate').val())}`;
+                $('#heatmapFrame').attr('src', url);
             });
-
-            // Also allow clicking on the backdrop to close the modal
-            $('#custom-modal-backdrop').on('click', function(e) {
-                if (e.target === this) {
-                    $(this).hide();
-                }
-            });
-
-            // Initial Load
-            initializeDateFilters();
-
             $('#exportPdfButton').on('click', function() {
                 var $button = $(this);
                 var $spinner = $('#exportSpinner');
                 var $message = $('#exportMessage');
-
                 $button.prop('disabled', true);
                 $spinner.show();
                 $message.show();
-
                 $.ajax({
-                    url: '/export_pdf',
-                    method: 'GET',
-                    xhrFields: {
-                        responseType: 'blob' // We expect binary data
-                    },
+                    url: '/export_pdf', method: 'GET', xhrFields: { responseType: 'blob' },
                     success: function (blob) {
                         var url = window.URL.createObjectURL(blob);
                         var a = document.createElement('a');
@@ -506,16 +592,15 @@
                         a.remove();
                         window.URL.revokeObjectURL(url);
                     },
-                    error: function () {
-                        Swal.fire('Error!', 'Failed to generate the report.', 'error');
-                    },
-                    complete: function () {
-                        $button.prop('disabled', false);
-                        $spinner.hide();
-                        $message.hide();
-                    }
+                    error: () => Swal.fire('Error!', 'Failed to generate the report.', 'error'),
+                    complete: () => { $button.prop('disabled', false); $spinner.hide(); $message.hide(); }
                 });
             });
+
+            // --- Initial Page Load ---
+            var savedTheme = localStorage.getItem('theme') || 'dark'; // Default to dark
+            applyTheme(savedTheme);
+            initializeDateFilters();
         });
     </script>
 </body>
