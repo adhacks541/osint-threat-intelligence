@@ -1,12 +1,23 @@
-flask
-folium
-xhtml2pdf
-shodan
-google-api-python-client
-selenium
-ipwhois
-pycountry_convert
-python-whois
-sherlock-project
-requests
+# Core Framework
+flask==3.0.0
+requests==2.31.0
 
+# Mapping & Visualization
+folium==0.15.0
+
+# PDF Generation
+xhtml2pdf==0.2.11
+selenium==4.15.2
+
+# OSINT Tools & APIs
+shodan==1.31.0
+google-api-python-client==2.100.0
+python-whois==0.8.0
+sherlock-project==0.14.3
+
+# Network & IP Tools
+ipwhois==1.2.0
+pycountry-convert==0.7.2
+
+# Configuration Management
+python-dotenv==1.0.0

@@ -1,255 +1,155 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - OSINT Dashboard</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Libraries -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.8/dist/sweetalert2.min.css" rel="stylesheet">
-    <style>
-        /* --- Theme Color Palettes --- */
-        :root {
-            --bg-color: #f4f6f9;
-            --text-color: #212529;
-            --card-bg: #ffffff;
-            --sidebar-bg: #ffffff;
-            --border-color: #dee2e6;
-            --accent-gold: #B8860B;
-            --accent-maroon: #800000;
-            --button-text: #ffffff;
-            --monospace-font: 'Courier New', Courier, monospace;
-            --sidebar-width: 250px;
-            --sidebar-collapsed-width: 60px;
-        }
-        .dark-mode {
-            --bg-color: #16181a;
-            --text-color: #e0e0e0;
-            --card-bg: #212529;
-            --sidebar-bg: #212529;
-            --border-color: #444;
-        }
 
-        /* --- General & Layout --- */
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            transition: background-color 0.3s, color 0.3s;
-        }
-        .main-content { 
-            margin-left: var(--sidebar-width); 
-            padding: 20px;
-            transition: margin-left 0.3s ease;
-        }
-        h1, h2, h3, h4, h5 {
-            color: var(--accent-maroon);
-            letter-spacing: 0.5px;
-        }
-
-        /* --- Sidebar --- */
-        .sidebar { 
-            height: 100vh; 
-            background: var(--sidebar-bg); 
-            position: fixed; 
-            width: var(--sidebar-width);
-            border-right: 1px solid var(--border-color);
-            transition: all 0.3s ease;
-            display: flex;
-            flex-direction: column;
-        }
-        .sidebar-header {
-            border-bottom: 1px solid var(--border-color);
-        }
-        .sidebar a { 
-            color: var(--text-color); 
-            text-decoration: none; 
-            padding: 15px 20px; 
-            display: flex;
-            align-items: center;
-            transition: background-color 0.2s ease, color 0.2s ease;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-        }
-        .sidebar a i {
-            margin-right: 15px;
-            width: 20px; /* Fixed width for icons */
-            text-align: center;
-        }
-        .sidebar a:hover { 
-            background: var(--accent-gold);
-            color: var(--button-text);
-        }
-        .sidebar-footer {
-            margin-top: auto;
-            padding: 15px;
-            border-top: 1px solid var(--border-color);
-        }
-
-        /* --- Collapsed Sidebar Specifics --- */
-        .sidebar.collapsed {
-            width: var(--sidebar-collapsed-width);
-        }
-        .sidebar.collapsed .sidebar-header h4 {
-            padding: 1rem;
-            font-size: 1.5rem;
-            text-align: center;
-        }
-        .sidebar.collapsed .sidebar-header h4 span, .sidebar.collapsed a span {
-            display: none;
-        }
-        .sidebar.collapsed a {
-            justify-content: center;
-            padding: 15px 0;
-        }
-        .sidebar.collapsed a i, .sidebar.collapsed .sidebar-header i {
-            margin-right: 0;
-        }
-        .sidebar.collapsed .sidebar-footer {
-            padding: 15px 10px;
-        }
-        .sidebar.collapsed #sidebar-toggle i {
-            transform: rotate(180deg);
-        }
-        .main-content.collapsed {
-            margin-left: var(--sidebar-collapsed-width);
-        }
-
-        /* --- UI Elements --- */
-        .card { 
-            border: 1px solid var(--border-color); 
-            background-color: var(--card-bg);
-            box-shadow: none;
-            border-radius: 4px;
-        }
-        .card-header {
-            background-color: transparent;
-            border-bottom: 1px solid var(--border-color);
-            font-weight: bold;
-        }
-        .btn-custom { 
-            background: var(--accent-maroon); 
-            border: 1px solid var(--accent-maroon);
-            color: var(--button-text);
-            font-weight: bold;
-            border-radius: 2px;
-        }
-        .btn-custom:hover { 
-            background: var(--accent-gold);
-            border-color: var(--accent-gold);
-            color: var(--button-text);
-        }
-        .form-control, .form-select {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            border: 1px solid #6c757d;
-        }
-        .form-control:focus, .form-select:focus {
-            border-color: var(--accent-gold);
-            box-shadow: 0 0 5px var(--accent-gold);
-        }
-    </style>
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
 </head>
+
 <body>
+
+    <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h4 class="p-3"><i class="fas fa-shield-alt"></i> <span>OSINT</span></h4>
+            <i class="fas fa-shield-halved fa-lg text-primary me-3"></i>
+            <span class="logo-text">OSINT DASHBOARD</span>
         </div>
-        <a href="/"><i class="fas fa-chart-line"></i> <span>Dashboard</span></a>
-        <a href="/settings"><i class="fas fa-cog"></i> <span>Settings</span></a>
+
+        <div class="nav-links">
+            <a href="/" class="nav-item">
+                <i class="fas fa-chart-line"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/settings" class="nav-item active">
+                <i class="fas fa-sliders"></i>
+                <span>Settings</span>
+            </a>
+        </div>
+
         <div class="sidebar-footer">
-            <button id="themeToggle" class="btn btn-outline-secondary w-100 mb-2" title="Toggle Theme"><i class="fas fa-moon"></i></button>
-            <button id="sidebar-toggle" class="btn btn-outline-secondary w-100" title="Toggle Sidebar"><i class="fas fa-angle-double-left"></i></button>
+            <button id="sidebar-toggle" class="btn btn-outline-glow w-100" title="Toggle Sidebar">
+                <i class="fas fa-chevron-left"></i>
+            </button>
         </div>
     </div>
 
-    <div class="main-content" id="main-content">
-        <h1 class="mb-4"><i class="fas fa-cog"></i> Settings</h1>
+    <!-- Main Content -->
+    <div class="main-content">
 
-        <!-- API Key Management -->
-        <div id="api-keys" class="card mb-4">
-            <div class="card-header">
-                <h5><i class="fas fa-key"></i> API Key Management</h5>
-            </div>
-            <div class="card-body">
-                <form id="settingsForm">
-                    <div class="mb-3">
-                        <label for="shodanApiKey" class="form-label">Shodan API Key</label>
-                        <input type="password" class="form-control" id="shodanApiKey" name="shodan_api_key">
-                    </div>
-                    <div class="mb-3">
-                        <label for="googleApiKey" class="form-label">Google API Key</label>
-                        <input type="password" class="form-control" id="googleApiKey" name="google_api_key">
-                    </div>
-                    <div class="mb-3">
-                        <label for="googleCseId" class="form-label">Google Programmable Search Engine ID</label>
-                        <input type="text" class="form-control" id="googleCseId" name="google_cse_id">
-                    </div>
-                    <div class="mb-3">
-                        <label for="virustotalApiKey" class="form-label">VirusTotal API Key</label>
-                        <input type="password" class="form-control" id="virustotalApiKey" name="virustotal_api_key">
-                    </div>
-                    <div class="mb-3">
-                        <label for="censysApiId" class="form-label">Censys Personal Access Token</label>
-                        <input type="password" class="form-control" id="censysApiId" name="censys_api_id">
-                    </div>
-                    <button type="submit" class="btn btn-custom">
-                        <i class="fas fa-save"></i> Save Settings
-                    </button>
-                </form>
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-5 animate-fade-in">
+            <div>
+                <h2 class="mb-1">System Configuration</h2>
+                <p class="text-muted mb-0">Manage API keys and database settings</p>
             </div>
         </div>
 
-        <!-- Database Management -->
-        <div id="database" class="card">
-            <div class="card-header">
-                <h5><i class="fas fa-database"></i> Database Management</h5>
+        <!-- API Key Management -->
+        <div class="glass-card animate-fade-in delay-1">
+            <h5 class="mb-4"><i class="fas fa-key me-2 text-primary"></i>API Credentials</h5>
+            <div class="alert alert-info bg-darker border-0 text-info mb-4">
+                <i class="fas fa-info-circle me-2"></i>
+                Settings are now managed via environment variables (.env file) for security.
+                The form below shows the current loaded configuration.
             </div>
-            <div class="card-body">
-                <p>Permanently delete all collected findings from the database.</p>
-                <button id="cleanDbButton" class="btn btn-danger">
-                    <i class="fas fa-trash"></i> Clean Database
+
+            <form id="settingsForm">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="shodanApiKey" class="form-label">Shodan API Key</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-darker border-secondary text-muted"><i
+                                    class="fas fa-lock"></i></span>
+                            <input type="password" class="form-control border-start-0" id="shodanApiKey"
+                                name="shodan_api_key" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="virustotalApiKey" class="form-label">VirusTotal API Key</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-darker border-secondary text-muted"><i
+                                    class="fas fa-lock"></i></span>
+                            <input type="password" class="form-control border-start-0" id="virustotalApiKey"
+                                name="virustotal_api_key" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="googleApiKey" class="form-label">Google API Key</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-darker border-secondary text-muted"><i
+                                    class="fas fa-lock"></i></span>
+                            <input type="password" class="form-control border-start-0" id="googleApiKey"
+                                name="google_api_key" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="googleCseId" class="form-label">Google CSE ID</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-darker border-secondary text-muted"><i
+                                    class="fas fa-id-badge"></i></span>
+                            <input type="text" class="form-control border-start-0" id="googleCseId" name="google_cse_id"
+                                readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-12">
+                        <label for="censysApiId" class="form-label">Censys API ID</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-darker border-secondary text-muted"><i
+                                    class="fas fa-lock"></i></span>
+                            <input type="password" class="form-control border-start-0" id="censysApiId"
+                                name="censys_api_id" readonly>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Database Management -->
+        <div class="glass-card animate-fade-in delay-2 border-danger" style="border-color: rgba(239, 68, 68, 0.3);">
+            <h5 class="mb-4 text-danger"><i class="fas fa-database me-2"></i>Danger Zone</h5>
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-1">Flush Database</h6>
+                    <p class="text-muted small mb-0">Permanently delete all collected findings and reset the database.
+                    </p>
+                </div>
+                <button id="cleanDbButton" class="btn btn-outline-danger">
+                    <i class="fas fa-trash-alt me-2"></i>Clean Database
                 </button>
             </div>
         </div>
     </div>
 
+    <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.8/dist/sweetalert2.all.min.js"></script>
     <script>
-        $(document).ready(function() {
-            // --- Sidebar and Theme Logic ---
-            $('#sidebar-toggle').on('click', function() {
+        $(document).ready(function () {
+            // Sidebar Toggle
+            $('#sidebar-toggle').on('click', function () {
                 $('#sidebar').toggleClass('collapsed');
-                $('#main-content').toggleClass('collapsed');
+                $('.main-content').toggleClass('collapsed');
             });
 
-            function applyTheme(theme) {
-                if (theme === 'dark') {
-                    $('body').addClass('dark-mode');
-                    $('#themeToggle i').removeClass('fa-moon').addClass('fa-sun');
-                } else {
-                    $('body').removeClass('dark-mode');
-                    $('#themeToggle i').removeClass('fa-sun').addClass('fa-moon');
-                }
-            }
-
-            $('#themeToggle').on('click', function() {
-                var isDark = $('body').hasClass('dark-mode');
-                var newTheme = isDark ? 'light' : 'dark';
-                applyTheme(newTheme);
-                localStorage.setItem('theme', newTheme);
-            });
-
-            // Apply saved theme on page load
-            var savedTheme = localStorage.getItem('theme') || 'dark'; // Default to dark
-            applyTheme(savedTheme);
-
-            // --- Settings Page Logic ---
-            // Load existing settings
-            $.get('/get_settings', function(data) {
+            // Load Settings
+            $.get('/get_settings', function (data) {
                 if (data.shodan_api_key) $('#shodanApiKey').val(data.shodan_api_key);
                 if (data.google_api_key) $('#googleApiKey').val(data.google_api_key);
                 if (data.google_cse_id) $('#googleCseId').val(data.google_cse_id);
@@ -257,31 +157,36 @@
                 if (data.censys_api_id) $('#censysApiId').val(data.censys_api_id);
             });
 
-            // Save settings
-            $('#settingsForm').on('submit', function(e) {
-                e.preventDefault();
-                $.post('/save_settings', $(this).serialize(), function(response) {
-                    Swal.fire('Success!', response.message, 'success');
-                }).fail(function() {
-                    Swal.fire('Error!', 'Failed to save settings.', 'error');
-                });
-            });
-
-            // Clean database
-            $('#cleanDbButton').on('click', function() {
+            // Clean Database
+            $('#cleanDbButton').on('click', function () {
                 Swal.fire({
                     title: 'Are you sure?',
                     text: "This will permanently delete all findings!",
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    confirmButtonText: 'Yes, delete it!'
+                    confirmButtonColor: '#ef4444',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Yes, delete it!',
+                    background: '#1e293b',
+                    color: '#fff'
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        $.post('/clean_db', function(response) {
-                            Swal.fire('Deleted!', response.message, 'success');
-                        }).fail(function() {
-                            Swal.fire('Error!', 'Failed to clean database.', 'error');
+                        $.post('/clean_db', function (response) {
+                            Swal.fire({
+                                title: 'Deleted!',
+                                text: response.message,
+                                icon: 'success',
+                                background: '#1e293b',
+                                color: '#fff'
+                            });
+                        }).fail(function () {
+                            Swal.fire({
+                                title: 'Error',
+                                text: 'Failed to clean database.',
+                                icon: 'error',
+                                background: '#1e293b',
+                                color: '#fff'
+                            });
                         });
                     }
                 });
@@ -289,4 +194,5 @@
         });
     </script>
 </body>
+
 </html>

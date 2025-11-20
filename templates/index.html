@@ -4,604 +4,220 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OSINT Threat Intelligence Dashboard</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Libraries -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.8/dist/sweetalert2.min.css" rel="stylesheet">
-    <style>
-        /* --- Theme Color Palettes --- */
-        :root {
-            --bg-color: #f4f6f9;
-            --text-color: #212529;
-            --card-bg: #ffffff;
-            --sidebar-bg: #ffffff;
-            --border-color: #dee2e6;
-            --accent-gold: #B8860B;
-            --accent-maroon: #800000;
-            --button-text: #ffffff;
-            --monospace-font: 'Courier New', Courier, monospace;
-            --sidebar-width: 250px;
-            --sidebar-collapsed-width: 60px;
-        }
-        .dark-mode {
-            --bg-color: #16181a;
-            --text-color: #e0e0e0;
-            --card-bg: #212529;
-            --sidebar-bg: #212529;
-            --border-color: #444;
-        }
-
-        /* --- General & Layout --- */
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            transition: background-color 0.3s, color 0.3s;
-        }
-        .main-content { 
-            margin-left: var(--sidebar-width); 
-            padding: 20px;
-            transition: margin-left 0.3s ease;
-        }
-        h1, h2, h3, h4, h5 {
-            color: var(--accent-maroon);
-            letter-spacing: 0.5px;
-        }
-        .table-responsive {
-            overflow-x: auto;
-        }
-
-        /* --- Sidebar --- */
-        .sidebar { 
-            height: 100vh; 
-            background: var(--sidebar-bg); 
-            position: fixed; 
-            width: var(--sidebar-width);
-            border-right: 1px solid var(--border-color);
-            transition: all 0.3s ease;
-            display: flex;
-            flex-direction: column;
-        }
-        .sidebar-header {
-            border-bottom: 1px solid var(--border-color);
-        }
-        .sidebar a { 
-            color: var(--text-color); 
-            text-decoration: none; 
-            padding: 15px 20px; 
-            display: flex;
-            align-items: center;
-            transition: background-color 0.2s ease, color 0.2s ease;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-        }
-        .sidebar a i {
-            margin-right: 15px;
-            width: 20px; /* Fixed width for icons */
-            text-align: center;
-        }
-        .sidebar a:hover {
-            background: var(--accent-gold);
-            color: var(--button-text);
-        }
-        .sidebar-footer {
-            margin-top: auto;
-            padding: 15px;
-            border-top: 1px solid var(--border-color);
-        }
-
-        /* --- Collapsed Sidebar Specifics --- */
-        .sidebar.collapsed {
-            width: var(--sidebar-collapsed-width);
-        }
-        .sidebar.collapsed .sidebar-header h4 {
-            padding: 1rem;
-            font-size: 1.5rem;
-            text-align: center;
-        }
-        .sidebar.collapsed .sidebar-header h4 span, .sidebar.collapsed a span {
-            display: none;
-        }
-        .sidebar.collapsed a {
-            justify-content: center;
-            padding: 15px 0;
-        }
-        .sidebar.collapsed a i, .sidebar.collapsed .sidebar-header i {
-            margin-right: 0;
-        }
-        .sidebar.collapsed .sidebar-footer {
-            padding: 15px 10px;
-        }
-        .sidebar.collapsed #sidebar-toggle i {
-            transform: rotate(180deg);
-        }
-        .main-content.collapsed {
-            margin-left: var(--sidebar-collapsed-width);
-        }
-
-        /* --- UI Elements --- */
-        .card { 
-            border: 1px solid var(--border-color); 
-            background-color: var(--card-bg);
-            box-shadow: none;
-            border-radius: 4px;
-        }
-        .card-header {
-            background-color: transparent;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .collection-bar .card-body {
-            padding: 1rem;
-        }
-        .btn-custom { 
-            background: var(--accent-maroon); 
-            border: 1px solid var(--accent-maroon);
-            color: var(--button-text);
-            font-weight: bold;
-            border-radius: 2px;
-        }
-        .btn-custom:hover { 
-            background: var(--accent-gold);
-            border-color: var(--accent-gold);
-            color: var(--button-text);
-        }
-        .form-control, .form-select {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            border: 1px solid #6c757d;
-        }
-        .form-control:focus, .form-select:focus {
-            border-color: var(--accent-gold);
-            box-shadow: 0 0 5px var(--accent-gold);
-        }
-        .table-hover > tbody > tr {
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-        }
-        .table-hover > tbody > tr:hover > * {
-            background-color: rgba(184, 134, 11, 0.1); /* Gold tint on hover */
-        }
-        .nav-tabs .nav-link {
-            color: var(--text-color);
-            border: none;
-            border-bottom: 2px solid transparent;
-        }
-        .nav-tabs .nav-link.active {
-            color: var(--accent-maroon);
-            background-color: transparent;
-            border-bottom: 2px solid var(--accent-maroon);
-        }
-        
-        /* --- Custom Modal --- */
-        #custom-modal-backdrop {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.7);
-            z-index: 1060;
-            display: none;
-            justify-content: center;
-            align-items: center;
-        }
-        #custom-modal-content {
-            background-color: var(--card-bg);
-            color: var(--text-color);
-            padding: 20px;
-            border-radius: 4px;
-            border: 1px solid var(--accent-gold);
-            width: 90vw;
-            max-width: 1400px;
-            height: 90vh;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 0 25px rgba(212, 175, 55, 0.2);
-        }
-        #custom-modal-close {
-            position: absolute; top: 10px; right: 20px;
-            font-size: 2.5rem; font-weight: bold; color: #6c757d;
-            border: none; background: none; cursor: pointer;
-        }
-        #custom-modal-close:hover { color: var(--accent-gold); }
-        #detailsJson {
-            flex-grow: 1;
-            overflow-y: auto;
-            margin-top: 20px;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            padding: 20px;
-            border-radius: 5px;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            word-break: break-all;
-            border: 1px solid var(--border-color);
-            font-family: var(--monospace-font);
-        }
-
-        /* --- Dark Mode Specifics --- */
-        .dark-mode .table {
-            color: var(--text-color);
-        }
-        .dark-mode .table-striped > tbody > tr:nth-of-type(odd) > * {
-            --bs-table-accent-bg: rgba(212, 175, 55, 0.05); /* Subtle Gold tint */
-        }
-        .dark-mode .dataTables_paginate .page-link {
-            background-color: var(--card-bg);
-            color: var(--text-color);
-            border-color: var(--border-color);
-        }
-        .dark-mode .dataTables_paginate .page-link:hover {
-            background-color: #333;
-            color: var(--accent-gold);
-            border-color: var(--border-color);
-        }
-        .dark-mode .page-item.active .page-link {
-            background-color: var(--accent-gold);
-            color: var(--button-text);
-            border-color: var(--accent-gold);
-        }
-        .dark-mode .page-item.disabled .page-link {
-            background-color: transparent;
-            color: #6c757d;
-            border-color: var(--border-color);
-        }
-    </style>
+    
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
 </head>
 <body>
+    
+    <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h4 class="p-3"><i class="fas fa-shield-alt"></i> <span>OSINT</span></h4>
+            <i class="fas fa-shield-halved fa-lg text-primary me-3"></i>
+            <span class="logo-text">OSINT DASHBOARD</span>
         </div>
-        <a href="/"><i class="fas fa-chart-line"></i> <span>Dashboard</span></a>
-        <a href="/settings"><i class="fas fa-cog"></i> <span>Settings</span></a>
+        
+        <div class="nav-links">
+            <a href="/" class="nav-item active">
+                <i class="fas fa-chart-line"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/settings" class="nav-item">
+                <i class="fas fa-sliders"></i>
+                <span>Settings</span>
+            </a>
+        </div>
+        
         <div class="sidebar-footer">
-            <button id="themeToggle" class="btn btn-outline-secondary w-100 mb-2" title="Toggle Theme"><i class="fas fa-moon"></i></button>
-            <button id="sidebar-toggle" class="btn btn-outline-secondary w-100" title="Toggle Sidebar"><i class="fas fa-angle-double-left"></i></button>
+            <button id="sidebar-toggle" class="btn btn-outline-glow w-100" title="Toggle Sidebar">
+                <i class="fas fa-chevron-left"></i>
+            </button>
         </div>
     </div>
 
-    <div class="main-content" id="main-content">
-        <!-- Collection Bar -->
-        <div class="card collection-bar">
-            <div class="card-body">
-                <form id="collectForm">
-                    <div class="row align-items-end">
-                        <div class="col-md-5">
-                            <label for="query" class="form-label small">Query</label>
-                            <input type="text" class="form-control" id="query" name="query" required>
-                        </div>
+    <!-- Main Content -->
+    <div class="main-content">
+        
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-5 animate-fade-in">
+            <div>
+                <h2 class="mb-1">Threat Intelligence</h2>
+                <p class="text-muted mb-0">Real-time data collection and analysis</p>
+            </div>
+            <div class="d-flex gap-2">
+                <span class="badge bg-darker border border-secondary text-secondary p-2">
+                    <i class="fas fa-circle text-success me-1" style="font-size: 8px;"></i> System Online
+                </span>
+            </div>
+        </div>
+
+        <!-- Collection Panel -->
+        <div class="glass-card animate-fade-in delay-1">
+            <h5 class="mb-4"><i class="fas fa-satellite-dish me-2 text-primary"></i>New Scan</h5>
+            <form id="collectForm">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <label for="query" class="form-label">Target / Query</label>
+                        <input type="text" class="form-control" id="query" name="query" placeholder="e.g. 8.8.8.8, example.com, username" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="tool" class="form-label">Intelligence Source</label>
+                        <select class="form-select" id="tool" name="tool">
+                            <option value="shodan">Shodan (IP Intelligence)</option>
+                            <option value="theharvester">theHarvester (Domain Recon)</option>
+                            <option value="google_dorks">Google Dorks (Search)</option>
+                            <option value="whois">WHOIS (Registration)</option>
+                            <option value="sherlock">Sherlock (Usernames)</option>
+                            <option value="virustotal">VirusTotal (Reputation)</option>
+                            <option value="censys">Censys (Host Info)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-glow w-100">
+                            <i class="fas fa-bolt me-2"></i>Start Scan
+                        </button>
+                    </div>
+                </div>
+            </form>
+            <div class="progress mt-4" style="display: none; height: 4px; background: rgba(255,255,255,0.1);">
+                <div id="collect-progress-bar" class="progress-bar bg-primary" role="progressbar" style="width: 0%;"></div>
+            </div>
+        </div>
+
+        <!-- Data Panel -->
+        <div class="glass-card animate-fade-in delay-2">
+            <!-- Tabs -->
+            <ul class="nav nav-tabs mb-4" id="main-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="findings-tab" data-bs-toggle="tab" data-bs-target="#findings" type="button">
+                        <i class="fas fa-list me-2"></i>Findings
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="heatmap-tab" data-bs-toggle="tab" data-bs-target="#heatmap" type="button">
+                        <i class="fas fa-map-location-dot me-2"></i>GeoMap
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="report-tab" data-bs-toggle="tab" data-bs-target="#report" type="button">
+                        <i class="fas fa-file-pdf me-2"></i>Reports
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+                <!-- Findings Tab -->
+                <div class="tab-pane fade show active" id="findings">
+                    <!-- Filters -->
+                    <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <label for="tool" class="form-label small">Tool</label>
-                            <select class="form-select" id="tool" name="tool">
-                                <option value="shodan">Shodan (IPs)</option>
-                                <option value="theharvester">theHarvester (Emails/Domains)</option>
-                                <option value="google_dorks">Google Dorks (Domains)</option>
-                                <option value="whois">WHOIS (Domain)</option>
-                                <option value="sherlock">Sherlock (Username)</option>
-                                <option value="virustotal">VirusTotal (IP/Domain)</option>
-                                <option value="censys">Censys (IP)</option>
-                            </select>
+                            <div class="input-group">
+                                <span class="input-group-text bg-darker border-secondary text-muted"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control border-start-0" id="searchKeyword" placeholder="Search findings...">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="text" class="form-control" id="portFilter" placeholder="Port (e.g. 80)">
                         </div>
                         <div class="col-md-3">
-                            <button type="submit" class="btn btn-custom w-100">
-                                <i class="fas fa-play"></i> Collect
-                            </button>
+                            <input type="date" class="form-control" id="startDate">
+                        </div>
+                        <div class="col-md-3">
+                            <input type="date" class="form-control" id="endDate">
                         </div>
                     </div>
-                </form>
-                <div class="progress mt-2" style="display: none; height: 5px;">
-                  <div id="collect-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%;"></div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Tabbed Interface -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <ul class="nav nav-tabs card-header-tabs" id="main-tabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="findings-tab" data-bs-toggle="tab" data-bs-target="#findings" type="button" role="tab" aria-controls="findings" aria-selected="true">Findings</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="heatmap-tab" data-bs-toggle="tab" data-bs-target="#heatmap" type="button" role="tab" aria-controls="heatmap" aria-selected="false">Heatmap</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="report-tab" data-bs-toggle="tab" data-bs-target="#report" type="button" role="tab" aria-controls="report" aria-selected="false">Report</button>
-                    </li>
-                </ul>
-            </div>
-            <div class="card-body">
-                <div class="tab-content" id="main-tabs-content">
-                    <div class="tab-pane fade show active" id="findings" role="tabpanel" aria-labelledby="findings-tab">
-                        <div class="row mb-3 g-2">
-                            <div class="col-md-4">
-                                <input type="text" class="form-control" id="searchKeyword" placeholder="Search keyword...">
-                            </div>
-                            <div class="col-md-2">
-                                <input type="text" class="form-control" id="portFilter" placeholder="Filter port...">
-                            </div>
-                            <div class="col-md-3">
-                                <input type="date" class="form-control" id="startDate" title="Start Date">
-                            </div>
-                            <div class="col-md-3">
-                                <input type="date" class="form-control" id="endDate" title="End Date">
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-end mb-3">
-                            <button id="deleteSelected" class="btn btn-danger" disabled title="Delete Selected"><i class="fas fa-trash"></i></button>
-                        </div>
-                        <div class="table-responsive">
-                            <table id="findingsTable" class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th><input type="checkbox" id="selectAll"></th>
-                                        <th>Timestamp</th>
-                                        <th>Type</th>
-                                        <th>Value</th>
-                                        <th>Source</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="results"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="tab-pane fade" id="heatmap" role="tabpanel" aria-labelledby="heatmap-tab">
-                        <p class="text-muted small">Date and port filters from the 'Findings' tab will apply to the heatmap.</p>
-                        <button id="loadHeatmap" class="btn btn-custom mb-3">
-                            <i class="fas fa-map-marker-alt"></i> Generate Heatmap
+                    <!-- Actions -->
+                    <div class="d-flex justify-content-end mb-3">
+                        <button id="deleteSelected" class="btn btn-outline-danger btn-sm" disabled>
+                            <i class="fas fa-trash-alt me-2"></i>Delete Selected<span></span>
                         </button>
-                        <iframe id="heatmapFrame" class="w-100" style="height: 60vh; border: none;"></iframe>
                     </div>
-                    <div class="tab-pane fade" id="report" role="tabpanel" aria-labelledby="report-tab">
-                        <p>Generate a comprehensive PDF report of all findings.</p>
-                        <button id="exportPdfButton" class="btn btn-custom">
-                            <i class="fas fa-file-pdf"></i> Download PDF Report
+
+                    <!-- Table -->
+                    <div class="table-container">
+                        <table id="findingsTable" class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;"><input type="checkbox" id="selectAll" class="form-check-input"></th>
+                                    <th style="width: 180px;">Timestamp</th>
+                                    <th style="width: 150px;">Type</th>
+                                    <th>Value / Summary</th>
+                                    <th style="width: 120px;">Source</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Heatmap Tab -->
+                <div class="tab-pane fade" id="heatmap">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <p class="text-muted small mb-0"><i class="fas fa-info-circle me-1"></i> Filters from the Findings tab apply here.</p>
+                        <button id="loadHeatmap" class="btn btn-outline-glow btn-sm">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh Map
                         </button>
-                        <div id="exportSpinner" class="spinner-border spinner-border-sm ms-2" role="status" style="display: none;"></div>
-                        <p id="exportMessage" class="text-muted mt-2" style="display: none;">Generating report, this may take a moment...</p>
+                    </div>
+                    <div class="table-container" style="height: 600px;">
+                        <iframe id="heatmapFrame" class="w-100 h-100 border-0"></iframe>
+                    </div>
+                </div>
+
+                <!-- Report Tab -->
+                <div class="tab-pane fade" id="report">
+                    <div class="text-center py-5">
+                        <div class="mb-4">
+                            <i class="fas fa-file-contract fa-4x text-primary opacity-50"></i>
+                        </div>
+                        <h4>Generate Intelligence Report</h4>
+                        <p class="text-muted mb-4">Create a comprehensive PDF report containing all current findings and visualizations.</p>
+                        <button id="exportPdfButton" class="btn btn-glow btn-lg">
+                            <i class="fas fa-download me-2"></i>Download PDF Report
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Custom Details Modal -->
-    <div id="custom-modal-backdrop">
-      <div id="custom-modal-content">
-        <h5 class="modal-title">Finding Details</h5>
-        <button id="custom-modal-close">&times;</button>
-        <pre id="detailsJson"></pre>
-      </div>
+    <!-- Details Modal -->
+    <div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content modal-content-glass">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-code me-2 text-primary"></i>Raw Data</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <pre id="detailsContent" class="m-0"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-glow" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
     </div>
 
+    <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.8/dist/sweetalert2.all.min.js"></script>
-    <script>
-        $(document).ready(function() {
-            // --- Initialization ---
-            var findingsTable = $('#findingsTable').DataTable({
-                "paging": true,
-                "searching": false,
-                "info": false,
-                "order": [[ 1, "desc" ]],
-                "columnDefs": [ 
-                    { "orderable": false, "targets": 0 }
-                ],
-                "createdRow": function( row, data, dataIndex ) {
-                    // The full data object for the row is stored in the 'data' parameter.
-                    // We need to find the original full object from the initial AJAX call.
-                    // This requires a bit of a workaround since DataTables works with array data.
-                    // We will store the details data directly on the row element.
-                }
-            });
-
-            // --- Data Loading ---
-            function loadFindings() {
-                // ... (search filters)
-                var keyword = $('#searchKeyword').val();
-                var port = $('#portFilter').val();
-                var startDate = $('#startDate').val();
-                var endDate = $('#endDate').val();
-
-                $.get('/search', {
-                    keyword: keyword,
-                    port: port,
-                    start_date: startDate,
-                    end_date: endDate
-                }, function(data) {
-                    var table = $('#findingsTable').DataTable();
-                    table.clear();
-                    data.forEach(function(item) {
-                        var details = item[10]; // Details are in the 11th column
-                        
-                        var rowNode = table.row.add([
-                            `<input type="checkbox" class="finding-checkbox" value="${item[0]}">`,
-                            item[6], // timestamp
-                            item[1], // type
-                            item[2], // value
-                            item[3]  // source
-                        ]).draw(false).node();
-                        
-                        // Attach details data to the row for the click handler
-                        if (details) {
-                            $(rowNode).data('details', details);
-                        }
-                    });
-                    $('#selectAll').prop('checked', false);
-                    $('#deleteSelected').prop('disabled', true);
-                });
-            }
-
-            function initializeDateFilters() {
-                $.get('/get_date_range', function(data) {
-                    if (data.min_date && data.max_date) {
-                        $('#startDate').val(data.min_date);
-                        $('#endDate').val(data.max_date);
-                    }
-                }).always(function() {
-                    loadFindings();
-                });
-            }
-
-            // --- Event Handlers ---
-
-            // Sidebar Toggle
-            $('#sidebar-toggle').on('click', function() {
-                $('#sidebar').toggleClass('collapsed');
-                $('#main-content').toggleClass('collapsed');
-            });
-
-            // Theme Toggling
-            function applyTheme(theme) {
-                if (theme === 'dark') {
-                    $('body').addClass('dark-mode');
-                    $('#themeToggle i').removeClass('fa-moon').addClass('fa-sun');
-                } else {
-                    $('body').removeClass('dark-mode');
-                    $('#themeToggle i').removeClass('fa-sun').addClass('fa-moon');
-                }
-            }
-            $('#themeToggle').on('click', function() {
-                var isDark = $('body').hasClass('dark-mode');
-                var newTheme = isDark ? 'light' : 'dark';
-                applyTheme(newTheme);
-                localStorage.setItem('theme', newTheme);
-            });
-
-            // Collection Form
-            var progressInterval;
-            $('#collectForm').on('submit', function(e) {
-                e.preventDefault();
-                var $submitButton = $(this).find('button[type="submit"]');
-                $submitButton.prop('disabled', true);
-                var $progressBar = $('#collect-progress-bar');
-                var $progressContainer = $progressBar.parent();
-                $progressBar.css('width', '0%').removeClass('bg-danger').addClass('bg-success');
-                $progressContainer.show();
-                progressInterval = setInterval(() => {
-                    let currentWidth = parseFloat($progressBar.css('width')) / $progressBar.parent().width() * 100;
-                    if (currentWidth < 95) {
-                        $progressBar.css('width', (currentWidth + 2) + '%');
-                    }
-                }, 200);
-
-                $.post('/collect', $(this).serialize())
-                    .done(() => {
-                        Swal.fire('Success!', 'Data collected successfully.', 'success').then(() => location.reload());
-                    })
-                    .fail(() => {
-                        $progressBar.removeClass('bg-success').addClass('bg-danger');
-                        Swal.fire('Error!', 'Failed to collect data.', 'error');
-                    })
-                    .always(() => {
-                        clearInterval(progressInterval);
-                        $progressBar.css('width', '100%');
-                        setTimeout(() => {
-                            $progressContainer.hide();
-                            $submitButton.prop('disabled', false);
-                        }, 1000);
-                    });
-            });
-
-            // Findings Table Row Click for Details
-            $('#findingsTable tbody').on('click', 'tr', function(event) {
-                if ($(event.target).is('input:checkbox')) {
-                    return;
-                }
-                var detailsData = $(this).data('details');
-                if (detailsData) {
-                    var formattedOutput;
-                    try {
-                        formattedOutput = JSON.stringify(JSON.parse(detailsData), null, 2);
-                    } catch (e) {
-                        formattedOutput = detailsData;
-                    }
-                    $('#detailsJson').text(formattedOutput);
-                    $('#custom-modal-backdrop').css('display', 'flex');
-                }
-            });
-            
-            // Other Table Interactions (Checkboxes, Delete)
-            $('#selectAll').on('click', function() {
-                var rows = findingsTable.rows({ 'search': 'applied' }).nodes();
-                $('input[type="checkbox"]', rows).prop('checked', this.checked);
-                updateDeleteButtonState();
-            });
-            $('#findingsTable tbody').on('change', 'input[type="checkbox"]', function() {
-                updateDeleteButtonState();
-            });
-            function updateDeleteButtonState() {
-                $('#deleteSelected').prop('disabled', !$('.finding-checkbox:checked').length > 0);
-            }
-            $('#deleteSelected').on('click', function() {
-                var selectedIds = $('.finding-checkbox:checked').map(function() { return $(this).val(); }).get();
-                if (selectedIds.length === 0) return;
-                Swal.fire({
-                    title: 'Are you sure?', text: `You are about to delete ${selectedIds.length} findings.`,
-                    icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33',
-                    confirmButtonText: 'Yes, delete them!'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        $.ajax({
-                            url: '/delete_findings', type: 'POST', contentType: 'application/json',
-                            data: JSON.stringify({ ids: selectedIds }),
-                            success: (response) => { Swal.fire('Deleted!', response.message, 'success'); loadFindings(); },
-                            error: () => Swal.fire('Error!', 'Failed to delete findings.', 'error')
-                        });
-                    }
-                });
-            });
-
-            // Filter event handler
-            $('#searchKeyword, #portFilter, #startDate, #endDate').on('input change', function() {
-                loadFindings();
-                // If heatmap tab is active, refresh it
-                if ($('#heatmap-tab').hasClass('active')) {
-                    // A small delay to allow table to filter first if needed, though not strictly necessary here
-                    setTimeout(() => { $('#loadHeatmap').trigger('click'); }, 100);
-                }
-            });
-
-            // Modal Close Handlers
-            $('#custom-modal-close').on('click', () => $('#custom-modal-backdrop').hide());
-            $('#custom-modal-backdrop').on('click', function(e) { if (e.target === this) $(this).hide(); });
-
-            // Heatmap & Report Tab Handlers
-            $('#loadHeatmap').on('click', function() {
-                var url = `/heatmap?v=${new Date().getTime()}&port=${encodeURIComponent($('#portFilter').val())}&start_date=${encodeURIComponent($('#startDate').val())}&end_date=${encodeURIComponent($('#endDate').val())}`;
-                $('#heatmapFrame').attr('src', url);
-            });
-            $('#exportPdfButton').on('click', function() {
-                var $button = $(this);
-                var $spinner = $('#exportSpinner');
-                var $message = $('#exportMessage');
-                $button.prop('disabled', true);
-                $spinner.show();
-                $message.show();
-                $.ajax({
-                    url: '/export_pdf', method: 'GET', xhrFields: { responseType: 'blob' },
-                    success: function (blob) {
-                        var url = window.URL.createObjectURL(blob);
-                        var a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'report.pdf';
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-                        window.URL.revokeObjectURL(url);
-                    },
-                    error: () => Swal.fire('Error!', 'Failed to generate the report.', 'error'),
-                    complete: () => { $button.prop('disabled', false); $spinner.hide(); $message.hide(); }
-                });
-            });
-
-            // --- Initial Page Load ---
-            var savedTheme = localStorage.getItem('theme') || 'dark'; // Default to dark
-            applyTheme(savedTheme);
-            initializeDateFilters();
-        });
-    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

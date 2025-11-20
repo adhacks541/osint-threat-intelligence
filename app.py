@@ -9,8 +9,6 @@ import time
 import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from ipwhois import IPWhois
-import pycountry_convert as pc
 import whois
 import shodan
 from googleapiclient.discovery import build
@@ -19,28 +17,68 @@ import subprocess
 import re
 import requests
 from base64 import urlsafe_b64encode
+import logging
+from logging.handlers import RotatingFileHandler
+from contextlib import contextmanager
 
+# Security imports
+from config import get_config, Config
+from validators import validate_query, validate_tool, sanitize_input
+from auth import init_auth, login_required, login, logout
 
-
+# Initialize Flask app
 app = Flask(__name__)
 
-CONFIG_FILE = 'config.json'
+# Load configuration
+config_class = get_config()
+app.config.from_object(config_class)
 
-# Config functions
+# Initialize authentication
+init_auth(app)
+
+# Setup logging
+if not app.debug:
+    if not os.path.exists(Config.LOG_DIR):
+        os.mkdir(Config.LOG_DIR)
+    file_handler = RotatingFileHandler(
+        Config.LOG_FILE, 
+        maxBytes=10240000,  # 10MB
+        backupCount=10
+    )
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+    ))
+    file_handler.setLevel(getattr(logging, Config.LOG_LEVEL))
+    app.logger.addHandler(file_handler)
+    app.logger.setLevel(getattr(logging, Config.LOG_LEVEL))
+    app.logger.info('OSINT Dashboard startup')
+
+# Config functions (backward compatibility - now uses environment variables)
 def load_config():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r') as f:
-            return json.load(f)
-    return {}
-
-def save_config(config):
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(config, f, indent=4)
+    """Load configuration from environment variables"""
+    return Config.get_config_dict()
 
 
 # Database setup
+DATABASE = Config.DATABASE_FILE
+
+@contextmanager
+def get_db():
+    """Context manager for database connections"""
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        app.logger.error(f'Database error: {str(e)}', exc_info=True)
+        raise
+    finally:
+        conn.close()
+
 def init_db():
-    conn = sqlite3.connect('osint.db')
+    conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS findings (
                     id INTEGER PRIMARY KEY,
@@ -86,9 +124,11 @@ init_db()
 
 # Real OSINT Functions
 def shodan_search(query):
-    config = load_config()
-    api_key = config.get('shodan_api_key')
+    """Search Shodan for IP information"""
+    app.logger.info(f'Shodan search initiated for: {query}')
+    api_key = Config.SHODAN_API_KEY
     if not api_key:
+        app.logger.warning('Shodan API key not configured')
         return [{'type': 'Error', 'value': 'Shodan API key not configured', 'source': 'System'}]
     
     try:
@@ -115,13 +155,22 @@ def shodan_search(query):
             'ports': ports,
             'details': host # Add the full host object for the details view
         }]
+        app.logger.info(f'Shodan search completed successfully for: {query}')
         return findings
     except shodan.APIError as e:
+        app.logger.error(f'Shodan API error: {str(e)}')
         return [{'type': 'Error', 'value': str(e), 'source': 'Shodan'}]
+    except Exception as e:
+        app.logger.error(f'Shodan search failed: {str(e)}', exc_info=True)
+        return [{'type': 'Error', 'value': f'Unexpected error: {str(e)}', 'source': 'Shodan'}]
 
 def theharvester_search(domain):
+    """Search using theHarvester tool"""
+    app.logger.info(f'theHarvester search initiated for: {domain}')
     try:
         # We will capture stdout, so no need for file output
+        # Sanitize domain to prevent command injection
+        domain = sanitize_input(domain, max_length=253)
         command = ['theHarvester', '-d', domain, '-b', 'duckduckgo,bing,yahoo,certspotter']
         
         result = subprocess.run(
@@ -150,21 +199,27 @@ def theharvester_search(domain):
             'details': details # Store the raw stdout
         }]
 
+        app.logger.info(f'theHarvester search completed for: {domain}')
         return findings
     except FileNotFoundError:
+        app.logger.error('theHarvester not found in PATH')
         return [{'type': 'Error', 'value': 'theHarvester not found. Make sure it is installed and in your PATH.', 'source': 'System'}]
     except subprocess.TimeoutExpired:
+        app.logger.warning(f'theHarvester scan timed out for: {domain}')
         return [{'type': 'Error', 'value': 'theHarvester scan timed out after 2 minutes.', 'source': 'theHarvester'}]
     except Exception as e:
+        app.logger.error(f'theHarvester search failed: {str(e)}', exc_info=True)
         return [{'type': 'Error', 'value': f"An unexpected error occurred: {e}", 'source': 'theHarvester'}]
 
 
 def google_dorks_search(query):
-    config = load_config()
-    api_key = config.get('google_api_key')
-    cse_id = config.get('google_cse_id')
+    """Search using Google Dorks"""
+    app.logger.info(f'Google Dorks search initiated for: {query}')
+    api_key = Config.GOOGLE_API_KEY
+    cse_id = Config.GOOGLE_CSE_ID
 
     if not api_key or not cse_id:
+        app.logger.warning('Google API key or CSE ID not configured')
         return [{'type': 'Error', 'value': 'Google API key or CSE ID not configured', 'source': 'System'}]
 
     try:
@@ -182,13 +237,18 @@ def google_dorks_search(query):
             'source': 'Google Dorks',
             'details': res # The full API response
         }]
+        app.logger.info(f'Google Dorks search completed for: {query}')
         return findings
     except HttpError as e:
+        app.logger.error(f'Google API error: {e.reason}')
         return [{'type': 'Error', 'value': f"Google API Error: {e.reason}", 'source': 'Google Dorks'}]
     except Exception as e:
+        app.logger.error(f'Google Dorks search failed: {str(e)}', exc_info=True)
         return [{'type': 'Error', 'value': str(e), 'source': 'Google Dorks'}]
 
 def whois_search(domain):
+    """Search WHOIS for domain information"""
+    app.logger.info(f'WHOIS search initiated for: {domain}')
     try:
         w = whois.whois(domain)
         if not w.get('domain_name'):
@@ -215,14 +275,20 @@ def whois_search(domain):
             'source': 'WHOIS',
             'details': details_copy
         }]
+        app.logger.info(f'WHOIS search completed for: {domain}')
         return findings
     except Exception as e:
+        app.logger.error(f'WHOIS search failed: {str(e)}', exc_info=True)
         return [{'type': 'Error', 'value': str(e), 'source': 'WHOIS'}]
 
 def sherlock_search(username):
+    """Search using Sherlock tool"""
+    app.logger.info(f'Sherlock search initiated for: {username}')
     try:
         # Add --no-color to prevent ANSI escape codes in the output
         # Add a timeout and run from the user's home directory for consistency
+        # Sanitize username to prevent command injection
+        username = sanitize_input(username, max_length=30)
         command = ['sherlock', '--no-color', username]
         result = subprocess.run(
             command, 
@@ -249,18 +315,24 @@ def sherlock_search(username):
             'details': result.stdout # Store the raw, formatted stdout
         }]
 
+        app.logger.info(f'Sherlock search completed for: {username}')
         return findings
     except FileNotFoundError:
+        app.logger.error('Sherlock not found in PATH')
         return [{'type': 'Error', 'value': 'Sherlock not found. Make sure it is installed and in your PATH.', 'source': 'System'}]
     except subprocess.TimeoutExpired:
+        app.logger.warning(f'Sherlock scan timed out for: {username}')
         return [{'type': 'Error', 'value': 'Sherlock scan timed out after 2 minutes.', 'source': 'Sherlock'}]
     except Exception as e:
+        app.logger.error(f'Sherlock search failed: {str(e)}', exc_info=True)
         return [{'type': 'Error', 'value': f"An unexpected error occurred: {e}", 'source': 'Sherlock'}]
 
 def virustotal_search(query):
-    config = load_config()
-    api_key = config.get('virustotal_api_key')
+    """Search VirusTotal for IP/domain reputation"""
+    app.logger.info(f'VirusTotal search initiated for: {query}')
+    api_key = Config.VIRUSTOTAL_API_KEY
     if not api_key:
+        app.logger.warning('VirusTotal API key not configured')
         return [{'type': 'Error', 'value': 'VirusTotal API key not configured', 'source': 'System'}]
 
     headers = {
@@ -287,17 +359,22 @@ def virustotal_search(query):
 
             stats = resp.get('data', {}).get('attributes', {}).get('last_analysis_stats', {})
             info = f"Malicious: {stats.get('malicious', 0)}, Harmless: {stats.get('harmless', 0)}, Suspicious: {stats.get('suspicious', 0)}"
+            app.logger.info(f'VirusTotal search completed for: {query}')
             return [{'type': 'Domain Reputation', 'value': info, 'source': 'VirusTotal', 'details': resp}]
     except requests.exceptions.HTTPError as e:
         # Handle HTTP errors (like 404 Not Found) gracefully
+        app.logger.error(f'VirusTotal API error: {e.response.status_code} {e.response.reason}')
         return [{'type': 'Error', 'value': f"VirusTotal API Error: {e.response.status_code} {e.response.reason}", 'source': 'VirusTotal'}]
     except Exception as e:
+        app.logger.error(f'VirusTotal search failed: {str(e)}', exc_info=True)
         return [{'type': 'Error', 'value': str(e), 'source': 'VirusTotal'}]
 
 def censys_search(query):
-    config = load_config()
-    token = config.get('censys_api_id') 
+    """Search Censys for host information"""
+    app.logger.info(f'Censys search initiated for: {query}')
+    token = Config.CENSYS_API_ID
     if not token:
+        app.logger.warning('Censys API token not configured')
         return [{'type': 'Error', 'value': 'Censys Personal Access Token not configured', 'source': 'System'}]
 
     # Headers for the new Censys Platform API v3
@@ -323,6 +400,7 @@ def censys_search(query):
         
         info = f"Services: {', '.join(services)}"
         
+        app.logger.info(f'Censys search completed for: {query}')
         return [{'type': 'Censys Host', 'value': info, 'source': 'Censys', 'details': resp.get('result', {})}]
     except requests.exceptions.HTTPError as e:
         # The new API might return a more detailed error message in the response body
@@ -330,218 +408,267 @@ def censys_search(query):
             error_details = e.response.json().get('error', str(e))
         except json.JSONDecodeError:
             error_details = str(e)
+        app.logger.error(f'Censys API error: {e.response.status_code} - {error_details}')
         return [{'type': 'Error', 'value': f"Censys API Error: {e.response.status_code} - {error_details}", 'source': 'Censys'}]
     except Exception as e:
+        app.logger.error(f'Censys search failed: {str(e)}', exc_info=True)
         return [{'type': 'Error', 'value': str(e), 'source': 'Censys'}]
+
+# Authentication routes (optional - can be enabled via environment variable)
+@app.route('/login', methods=['GET', 'POST'])
+def login_route():
+    """Login route"""
+    return login()
+
+@app.route('/logout')
+def logout_route():
+    """Logout route"""
+    return logout()
 
 @app.route('/')
 def index():
+    """Main dashboard page"""
     return render_template('index.html')
 
 @app.route('/collect', methods=['POST'])
 def collect():
-    query = request.form['query']
-    tool = request.form['tool']
-    findings = []
-    if tool == 'shodan':
-        findings = shodan_search(query)
-    elif tool == 'theharvester':
-        findings = theharvester_search(query)
-    elif tool == 'google_dorks':
-        findings = google_dorks_search(query)
-    elif tool == 'whois':
-        findings = whois_search(query)
-    elif tool == 'sherlock':
-        findings = sherlock_search(query)
-    elif tool == 'virustotal':
-        findings = virustotal_search(query)
-    elif tool == 'censys':
-        findings = censys_search(query)
-    
-    # Store in DB
-    conn = sqlite3.connect('osint.db')
-    c = conn.cursor()
-    for f in findings:
-        # Need to serialize the details dict to a JSON string for DB storage
-        details_json = json.dumps(f.get('details'), indent=4) if f.get('details') else None
-        c.execute("INSERT INTO findings (type, value, source, lat, lon, asn, country, ports, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                  (f['type'], f.get('value'), f.get('source'), f.get('lat'), f.get('lon'), f.get('asn'), f.get('country'), f.get('ports'), details_json))
-    conn.commit()
-    conn.close()
-    return jsonify({'status': 'success', 'findings': findings})
+    """Collect OSINT data from various sources"""
+    try:
+        # Validate and sanitize input
+        query = request.form.get('query', '')
+        tool = request.form.get('tool', '')
+        
+        # Validate tool
+        validate_tool(tool)
+        
+        # Validate and sanitize query
+        query = validate_query(query, tool)
+        
+        app.logger.info(f'Data collection requested: tool={tool}, query={query}')
+        
+        findings = []
+        if tool == 'shodan':
+            findings = shodan_search(query)
+        elif tool == 'theharvester':
+            findings = theharvester_search(query)
+        elif tool == 'google_dorks':
+            findings = google_dorks_search(query)
+        elif tool == 'whois':
+            findings = whois_search(query)
+        elif tool == 'sherlock':
+            findings = sherlock_search(query)
+        elif tool == 'virustotal':
+            findings = virustotal_search(query)
+        elif tool == 'censys':
+            findings = censys_search(query)
+        
+        # Store in DB
+        try:
+            with get_db() as conn:
+                c = conn.cursor()
+                for f in findings:
+                    # Need to serialize the details dict to a JSON string for DB storage
+                    details_json = json.dumps(f.get('details'), indent=4) if f.get('details') else None
+                    c.execute("INSERT INTO findings (type, value, source, lat, lon, asn, country, ports, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                              (f['type'], f.get('value'), f.get('source'), f.get('lat'), f.get('lon'), f.get('asn'), f.get('country'), f.get('ports'), details_json))
+            app.logger.info(f'Stored {len(findings)} findings in database')
+        except Exception as e:
+            app.logger.error(f'Failed to store findings in database: {str(e)}', exc_info=True)
+            return jsonify({'status': 'error', 'message': 'Failed to store findings'}), 500
+        
+        return jsonify({'status': 'success', 'findings': findings})
+    except Exception as e:
+        app.logger.error(f'Collection error: {str(e)}', exc_info=True)
+        return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/search', methods=['GET'])
 def search():
-    keyword = request.args.get('keyword', '')
-    port = request.args.get('port', '')
+    """Search findings in database"""
+    # Sanitize search inputs
+    keyword = sanitize_input(request.args.get('keyword', ''), max_length=100)
+    port = sanitize_input(request.args.get('port', ''), max_length=50)
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
     
-    conn = sqlite3.connect('osint.db')
-    c = conn.cursor()
+    try:
+        with get_db() as conn:
+            c = conn.cursor()
+            
+            query_parts = ["SELECT id, type, value, source, lat, lon, timestamp, asn, country, ports, details FROM findings WHERE value LIKE ?"]
+            params = ['%' + keyword + '%']
     
-    query_parts = ["SELECT id, type, value, source, lat, lon, timestamp, asn, country, ports, details FROM findings WHERE value LIKE ?"]
-    params = ['%' + keyword + '%']
+            if port:
+                query_parts.append("AND ports LIKE ?")
+                params.append('%' + port + '%')
+            
+            if start_date:
+                query_parts.append("AND timestamp >= ?")
+                params.append(start_date)
+                
+            if end_date:
+                query_parts.append("AND timestamp <= ?")
+                params.append(end_date + ' 23:59:59') # Include the entire end day
+                
+            query_parts.append("ORDER BY timestamp DESC")
     
-    if port:
-        query_parts.append("AND ports LIKE ?")
-        params.append('%' + port + '%')
-    
-    if start_date:
-        query_parts.append("AND timestamp >= ?")
-        params.append(start_date)
-        
-    if end_date:
-        query_parts.append("AND timestamp <= ?")
-        params.append(end_date + ' 23:59:59') # Include the entire end day
-        
-    query_parts.append("ORDER BY timestamp DESC")
-    
-    query = ' '.join(query_parts)
-    c.execute(query, params)
-    
-    results = c.fetchall()
-    conn.close()
-    return jsonify(results)
+            query = ' '.join(query_parts)
+            c.execute(query, params)
+            
+            results = c.fetchall()
+            # Convert Row objects to lists for JSON serialization
+            results = [list(row) for row in results]
+        return jsonify(results)
+    except Exception as e:
+        app.logger.error(f'Search error: {str(e)}', exc_info=True)
+        return jsonify({'error': 'Search failed'}), 500
 
 @app.route('/heatmap')
 def heatmap():
-    port = request.args.get('port', '')
+    """Generate heatmap visualization"""
+    port = sanitize_input(request.args.get('port', ''), max_length=50)
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
 
-    conn = sqlite3.connect('osint.db')
-    c = conn.cursor()
+    try:
+        with get_db() as conn:
+            c = conn.cursor()
 
-    query_parts = ["SELECT lat, lon, value, asn, country FROM findings WHERE lat IS NOT NULL AND lon IS NOT NULL"]
-    params = []
-
-    if port:
-        query_parts.append("AND ports LIKE ?")
-        params.append('%' + port + '%')
-
-    if start_date:
-        query_parts.append("AND timestamp >= ?")
-        params.append(start_date)
+            query_parts = ["SELECT lat, lon, value, asn, country FROM findings WHERE lat IS NOT NULL AND lon IS NOT NULL"]
+            params = []
         
-    if end_date:
-        query_parts.append("AND timestamp <= ?")
-        params.append(end_date + ' 23:59:59')
+            if port:
+                query_parts.append("AND ports LIKE ?")
+                params.append('%' + port + '%')
+            
+            if start_date:
+                query_parts.append("AND timestamp >= ?")
+                params.append(start_date)
+                
+            if end_date:
+                query_parts.append("AND timestamp <= ?")
+                params.append(end_date + ' 23:59:59')
 
-    query = ' '.join(query_parts)
-    c.execute(query, params)
+            query = ' '.join(query_parts)
+            c.execute(query, params)
 
-    points = c.fetchall()
-    conn.close()
+            points = c.fetchall()
+        
+        heatmap_html_path = 'static/heatmap.html'
+
+        if points:
+            m = folium.Map(location=[20, 0], zoom_start=2)
+            heat_data = [[point[0], point[1]] for point in points]
+            HeatMap(heat_data).add_to(m)
+            marker_cluster = MarkerCluster().add_to(m)
+            for lat, lon, value, asn, country in points:
+                popup_html = f"<b>IP:</b> {value}<br><b>Country:</b> {country}<br><b>ASN:</b> {asn}"
+                folium.Marker(
+                    location=[lat, lon],
+                    popup=popup_html,
+                ).add_to(marker_cluster)
+            m.save(heatmap_html_path)
+        else:
+            no_data_html = """
+            <!DOCTYPE html>
+            <html>
+            <head><title>No Data</title></head>
+            <body><h3>No geolocation data available for the current filter.</h3></body>
+            </html>
+            """
+            with open(heatmap_html_path, 'w') as f:
+                f.write(no_data_html)
     
-    heatmap_html_path = 'static/heatmap.html'
-
-    if points:
-        m = folium.Map(location=[20, 0], zoom_start=2)
-        heat_data = [[point[0], point[1]] for point in points]
-        HeatMap(heat_data).add_to(m)
-        marker_cluster = MarkerCluster().add_to(m)
-        for lat, lon, value, asn, country in points:
-            popup_html = f"<b>IP:</b> {value}<br><b>Country:</b> {country}<br><b>ASN:</b> {asn}"
-            folium.Marker(
-                location=[lat, lon],
-                popup=popup_html,
-            ).add_to(marker_cluster)
-        m.save(heatmap_html_path)
-    else:
-        no_data_html = """
-        <!DOCTYPE html>
-        <html>
-        <head><title>No Data</title></head>
-        <body><h3>No geolocation data available for the current filter.</h3></body>
-        </html>
-        """
-        with open(heatmap_html_path, 'w') as f:
-            f.write(no_data_html)
-
-    return send_file(heatmap_html_path)
+            return send_file(heatmap_html_path)
+    except Exception as e:
+        app.logger.error(f'Heatmap generation error: {str(e)}', exc_info=True)
+        return "Error generating heatmap", 500
 
 @app.route('/export_pdf')
 def export_pdf():
-    conn = sqlite3.connect('osint.db')
-    # Use a dictionary cursor to make data handling easier
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT * FROM findings ORDER BY timestamp DESC")
-    db_findings = c.fetchall()
-    
-    c.execute("SELECT lat, lon, value FROM findings WHERE lat IS NOT NULL AND lon IS NOT NULL")
-    points = c.fetchall()
-    conn.close()
-
-    # Process findings for the template
-    findings_for_template = []
-    for finding in db_findings:
-        finding_dict = dict(finding)
-        if finding_dict['details']:
-            try:
-                # Parse and re-stringify for pretty printing in the report
-                details_obj = json.loads(finding_dict['details'])
-                finding_dict['details'] = json.dumps(details_obj, indent=4)
-            except (json.JSONDecodeError, TypeError):
-                # If it's not a valid JSON string (like for theHarvester), just pass it as is
-                pass
-        findings_for_template.append(finding_dict)
-
-    heatmap_path = None
-    heatmap_filename = f"static/heatmap_{int(time.time())}.png"
-    map_html_filename = f"static/map_{int(time.time())}.html"
-
+    """Export findings to PDF report"""
+    app.logger.info('PDF export requested')
     try:
-        if points:
-            # 1. Generate hybrid heatmap HTML
-            m = folium.Map(location=[20, 0], zoom_start=2)
-            heat_data = [[point['lat'], point['lon']] for point in points]
-            HeatMap(heat_data).add_to(m)
-            marker_cluster = MarkerCluster().add_to(m)
-            for lat, lon, value in points:
-                folium.Marker(location=[lat, lon], popup=value).add_to(marker_cluster)
-            m.save(map_html_filename)
-
-            # 2. Take screenshot with Selenium
-            options = webdriver.ChromeOptions()
-            options.add_argument('--headless')
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM findings ORDER BY timestamp DESC")
+            db_findings = c.fetchall()
             
-            service = ChromeService()
-            driver = webdriver.Chrome(service=service, options=options)
-            driver.set_window_size(1200, 800) # Set window size to prevent cut-off map
-            
-            driver.get(f"file://{os.path.abspath(map_html_filename)}")
-            time.sleep(2) # Allow map to render
-            driver.save_screenshot(heatmap_filename)
-            driver.quit()
-            heatmap_path = os.path.abspath(heatmap_filename)
+            c.execute("SELECT lat, lon, value FROM findings WHERE lat IS NOT NULL AND lon IS NOT NULL")
+            points = c.fetchall()
 
-        # 3. Render HTML for PDF
-        rendered_html = render_template(
-            'report_template.html',
-            findings=findings_for_template,
-            generation_date=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            heatmap_path=heatmap_path
-        )
-        
-        # 4. Create PDF
-        output_filename = 'report.pdf'
-        with open(output_filename, "w+b") as pdf_file:
-            pisa_status = pisa.CreatePDF(rendered_html, dest=pdf_file)
+        # Process findings for the template
+        findings_for_template = []
+        for finding in db_findings:
+            finding_dict = dict(finding)
+            if finding_dict['details']:
+                try:
+                    # Parse and re-stringify for pretty printing in the report
+                    details_obj = json.loads(finding_dict['details'])
+                    finding_dict['details'] = json.dumps(details_obj, indent=4)
+                except (json.JSONDecodeError, TypeError):
+                    # If it's not a valid JSON string (like for theHarvester), just pass it as is
+                    pass
+            findings_for_template.append(finding_dict)
+    
+        heatmap_path = None
+        heatmap_filename = f"static/heatmap_{int(time.time())}.png"
+        map_html_filename = f"static/map_{int(time.time())}.html"
 
-        if pisa_status.err:
-            return "Error generating PDF", 500
+        try:
+            if points:
+                # 1. Generate hybrid heatmap HTML
+                m = folium.Map(location=[20, 0], zoom_start=2)
+                heat_data = [[point['lat'], point['lon']] for point in points]
+                HeatMap(heat_data).add_to(m)
+                marker_cluster = MarkerCluster().add_to(m)
+                for lat, lon, value in points:
+                    folium.Marker(location=[lat, lon], popup=value).add_to(marker_cluster)
+                m.save(map_html_filename)
+    
+                # 2. Take screenshot with Selenium
+                options = webdriver.ChromeOptions()
+                options.add_argument('--headless')
+                options.add_argument('--no-sandbox')
+                options.add_argument('--disable-dev-shm-usage')
+                
+                service = ChromeService()
+                driver = webdriver.Chrome(service=service, options=options)
+                driver.set_window_size(1200, 800) # Set window size to prevent cut-off map
+                
+                driver.get(f"file://{os.path.abspath(map_html_filename)}")
+                time.sleep(2) # Allow map to render
+                driver.save_screenshot(heatmap_filename)
+                driver.quit()
+                heatmap_path = os.path.abspath(heatmap_filename)
+    
+            # 3. Render HTML for PDF
+            rendered_html = render_template(
+                'report_template.html',
+                findings=findings_for_template,
+                generation_date=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                heatmap_path=heatmap_path
+            )
             
-        return send_file(output_filename, as_attachment=True)
-    finally:
-        # 5. Cleanup
-        if heatmap_path and os.path.exists(heatmap_filename):
-            os.remove(heatmap_filename)
-        if os.path.exists(map_html_filename):
-            os.remove(map_html_filename)
+            # 4. Create PDF
+            output_filename = 'report.pdf'
+            with open(output_filename, "w+b") as pdf_file:
+                pisa_status = pisa.CreatePDF(rendered_html, dest=pdf_file)
+    
+            if pisa_status.err:
+                app.logger.error('PDF generation failed')
+                return "Error generating PDF", 500
+            
+            app.logger.info('PDF export completed successfully')
+            return send_file(output_filename, as_attachment=True)
+        finally:
+            # 5. Cleanup
+            if heatmap_path and os.path.exists(heatmap_filename):
+                os.remove(heatmap_filename)
+            if os.path.exists(map_html_filename):
+                os.remove(map_html_filename)
+    except Exception as e:
+        app.logger.error(f'PDF export error: {str(e)}', exc_info=True)
+        return "Error generating PDF", 500
 
 @app.route('/settings')
 def settings():
@@ -553,60 +680,78 @@ def get_settings():
 
 @app.route('/save_settings', methods=['POST'])
 def save_settings():
-    config = load_config()
-    config['shodan_api_key'] = request.form.get('shodan_api_key', '')
-    config['google_api_key'] = request.form.get('google_api_key', '')
-    config['google_cse_id'] = request.form.get('google_cse_id', '')
-    config['virustotal_api_key'] = request.form.get('virustotal_api_key', '')
-    config['censys_api_id'] = request.form.get('censys_api_id', '')
-    # Remove censys_api_secret if it exists from old configs
-    config.pop('censys_api_secret', None)
-    save_config(config)
-    return jsonify({'message': 'Settings saved successfully!'})
+    """Save settings - Note: Settings are now managed via environment variables"""
+    # Settings are now managed via .env file for security
+    # This endpoint is kept for backward compatibility but doesn't actually save
+    app.logger.warning('Settings save attempted - settings now managed via environment variables')
+    return jsonify({
+        'message': 'Settings are now managed via environment variables (.env file). Please update your .env file and restart the application.'
+    })
 
 @app.route('/clean_db', methods=['POST'])
 def clean_db():
-    conn = sqlite3.connect('osint.db')
-    c = conn.cursor()
-    c.execute("DELETE FROM findings")
-    conn.commit()
-    conn.close()
-    return jsonify({'message': 'Database cleaned successfully!'})
+    """Clean all findings from database"""
+    app.logger.warning('Database clean requested')
+    try:
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM findings")
+        app.logger.info('Database cleaned successfully')
+        return jsonify({'message': 'Database cleaned successfully!'})
+    except Exception as e:
+        app.logger.error(f'Database clean failed: {str(e)}', exc_info=True)
+        return jsonify({'error': 'Failed to clean database'}), 500
 
 @app.route('/delete_findings', methods=['POST'])
 def delete_findings():
+    """Delete selected findings from database"""
     data = request.get_json()
     ids_to_delete = data.get('ids', [])
     
     if not ids_to_delete:
         return jsonify({'status': 'error', 'message': 'No IDs provided'}), 400
+    
+    # Validate IDs are integers
+    try:
+        ids_to_delete = [int(id) for id in ids_to_delete]
+    except (ValueError, TypeError):
+        app.logger.warning('Invalid IDs provided for deletion')
+        return jsonify({'status': 'error', 'message': 'Invalid ID format'}), 400
+    
+    try:
+        with get_db() as conn:
+            c = conn.cursor()
+            
+            # Using placeholders to prevent SQL injection
+            placeholders = ','.join('?' for _ in ids_to_delete)
+            query = f"DELETE FROM findings WHERE id IN ({placeholders})"
+            
+            c.execute(query, ids_to_delete)
         
-    conn = sqlite3.connect('osint.db')
-    c = conn.cursor()
-    
-    # Using placeholders to prevent SQL injection
-    placeholders = ','.join('?' for _ in ids_to_delete)
-    query = f"DELETE FROM findings WHERE id IN ({placeholders})"
-    
-    c.execute(query, ids_to_delete)
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'status': 'success', 'message': f'Deleted {len(ids_to_delete)} findings.'})
+        app.logger.info(f'Deleted {len(ids_to_delete)} findings')
+        return jsonify({'status': 'success', 'message': f'Deleted {len(ids_to_delete)} findings.'})
+    except Exception as e:
+        app.logger.error(f'Delete findings failed: {str(e)}', exc_info=True)
+        return jsonify({'status': 'error', 'message': 'Failed to delete findings'}), 500
 
 @app.route('/get_date_range', methods=['GET'])
 def get_date_range():
-    conn = sqlite3.connect('osint.db')
-    c = conn.cursor()
-    c.execute("SELECT MIN(timestamp), MAX(timestamp) FROM findings")
-    result = c.fetchone()
-    conn.close()
-    
-    # Convert to YYYY-MM-DD format for date inputs
-    min_date = result[0].split(' ')[0] if result[0] else ''
-    max_date = result[1].split(' ')[0] if result[1] else ''
-    
-    return jsonify({'min_date': min_date, 'max_date': max_date})
+    """Get date range of findings in database"""
+    try:
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute("SELECT MIN(timestamp), MAX(timestamp) FROM findings")
+            result = c.fetchone()
+        
+        # Convert to YYYY-MM-DD format for date inputs
+        min_date = result[0].split(' ')[0] if result[0] else ''
+        max_date = result[1].split(' ')[0] if result[1] else ''
+        
+        return jsonify({'min_date': min_date, 'max_date': max_date})
+    except Exception as e:
+        app.logger.error(f'Get date range failed: {str(e)}', exc_info=True)
+        return jsonify({'min_date': '', 'max_date': ''})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Use configuration to determine debug mode
+    app.run(debug=app.config['DEBUG'], host='127.0.0.1', port=5000)
