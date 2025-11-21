@@ -40,6 +40,10 @@
                 <i class="fas fa-sliders"></i>
                 <span>Settings</span>
             </a>
+            <a href="https://web3sec-scanner.vercel.app/" target="_blank" class="nav-item">
+                <i class="fas fa-shield-alt"></i>
+                <span>Web3Sec Scanner</span>
+            </a>
         </div>
 
         <div class="sidebar-footer">
@@ -107,13 +111,31 @@
                                 readonly>
                         </div>
                     </div>
-                    <div class="col-md-12">
+                    <div class="col-md-6">
                         <label for="censysApiId" class="form-label">Censys API ID</label>
                         <div class="input-group">
                             <span class="input-group-text bg-darker border-secondary text-muted"><i
                                     class="fas fa-lock"></i></span>
                             <input type="password" class="form-control border-start-0" id="censysApiId"
                                 name="censys_api_id" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-12">
+                        <label for="geminiApiKey" class="form-label">Gemini API Key</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-darker border-secondary text-muted"><i
+                                    class="fas fa-robot"></i></span>
+                            <input type="password" class="form-control border-start-0" id="geminiApiKey"
+                                name="gemini_api_key" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-12">
+                        <label for="whoisxmlApiKey" class="form-label">WhoisXML API Key</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-darker border-secondary text-muted"><i
+                                    class="fas fa-id-card"></i></span>
+                            <input type="password" class="form-control border-start-0" id="whoisxmlApiKey"
+                                name="whoisxml_api_key" readonly>
                         </div>
                     </div>
                 </div>
@@ -155,6 +177,8 @@
                 if (data.google_cse_id) $('#googleCseId').val(data.google_cse_id);
                 if (data.virustotal_api_key) $('#virustotalApiKey').val(data.virustotal_api_key);
                 if (data.censys_api_id) $('#censysApiId').val(data.censys_api_id);
+                if (data.gemini_api_key) $('#geminiApiKey').val(data.gemini_api_key);
+                if (data.whoisxml_api_key) $('#whoisxmlApiKey').val(data.whoisxml_api_key);
             });
 
             // Clean Database

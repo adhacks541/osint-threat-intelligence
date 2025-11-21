@@ -23,7 +23,9 @@ class Config:
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
     GOOGLE_CSE_ID = os.getenv('GOOGLE_CSE_ID', '')
     VIRUSTOTAL_API_KEY = os.getenv('VIRUSTOTAL_API_KEY', '')
-    CENSYS_API_ID = os.getenv('CENSYS_API_ID', '')
+    CENSYS_API_ID = os.environ.get('CENSYS_API_ID')
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+    WHOISXML_API_KEY = os.environ.get('WHOISXML_API_KEY', '')
     
     # Authentication
     ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
@@ -52,6 +54,8 @@ class Config:
             'google_cse_id': Config.GOOGLE_CSE_ID,
             'virustotal_api_key': Config.VIRUSTOTAL_API_KEY,
             'censys_api_id': Config.CENSYS_API_ID,
+            'gemini_api_key': Config.GEMINI_API_KEY,
+            'whoisxml_api_key': Config.WHOISXML_API_KEY
         }
 
 

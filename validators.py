@@ -110,27 +110,29 @@ def validate_domain(domain):
 
 def validate_username(username):
     """
-    Validate username format
+    Validate username/name format for Sherlock
+    Accepts usernames, real names, and any string Sherlock can search
     
     Args:
-        username: Username string to validate
+        username: Username or name string to validate
     
     Returns:
         True if valid, raises 400 error if invalid
     """
     if not username:
-        abort(400, 'Username is required')
+        abort(400, 'Username/Name is required')
     
     # Length check
-    if len(username) < 3:
-        abort(400, 'Username must be at least 3 characters')
+    if len(username) < 2:
+        abort(400, 'Username/Name must be at least 2 characters')
     
-    if len(username) > 30:
-        abort(400, 'Username must be 30 characters or less')
+    if len(username) > 100:
+        abort(400, 'Username/Name must be 100 characters or less')
     
-    # Character check - alphanumeric, underscore, hyphen only
-    if not re.match(r'^[a-zA-Z0-9_-]+$', username):
-        abort(400, 'Username can only contain letters, numbers, underscores, and hyphens')
+    # More flexible character check - allow letters, numbers, spaces, dots, underscores, hyphens
+    # This allows for real names like "John Doe" or usernames like "john.doe" or "john_doe"
+    if not re.match(r'^[a-zA-Z0-9_.\- ]+$', username):
+        abort(400, 'Username/Name can only contain letters, numbers, spaces, dots, underscores, and hyphens')
     
     return True
 
@@ -155,7 +157,18 @@ def validate_query(query, tool):
     # Validate based on tool
     if tool == 'shodan':
         validate_ip(query)
-    elif tool in ['theharvester', 'google_dorks', 'whois', 'virustotal', 'censys']:
+    elif tool == 'censys':
+        # Censys accepts both IP addresses and domains/hostnames
+        # Try IP validation first, if it fails, try domain validation
+        try:
+            validate_ip(query)
+        except:
+            # If IP validation fails, try domain validation
+            try:
+                validate_domain(query)
+            except:
+                abort(400, 'Censys requires a valid IP address or domain name')
+    elif tool in ['theharvester', 'google_dorks', 'whois', 'virustotal']:
         validate_domain(query)
     elif tool == 'sherlock':
         validate_username(query)

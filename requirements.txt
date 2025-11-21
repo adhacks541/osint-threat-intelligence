@@ -14,6 +14,7 @@ shodan==1.31.0
 google-api-python-client==2.100.0
 python-whois==0.8.0
 sherlock-project==0.14.3
+git+https://github.com/laramies/theHarvester.git
 
 # Network & IP Tools
 ipwhois==1.2.0
@@ -21,3 +22,4 @@ pycountry-convert==0.7.2
 
 # Configuration Management
 python-dotenv==1.0.0
+google-generativeai

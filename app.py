@@ -4,6 +4,7 @@ import folium
 from folium.plugins import HeatMap, MarkerCluster
 from xhtml2pdf import pisa
 import os
+import sys
 import json
 import time
 import datetime
@@ -25,6 +26,7 @@ from contextlib import contextmanager
 from config import get_config, Config
 from validators import validate_query, validate_tool, sanitize_input
 from auth import init_auth, login_required, login, logout
+from ai_analyst import AIAnalyst
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -35,6 +37,9 @@ app.config.from_object(config_class)
 
 # Initialize authentication
 init_auth(app)
+
+# Initialize AI Analyst
+ai_analyst = AIAnalyst()
 
 # Setup logging
 if not app.debug:
@@ -169,9 +174,11 @@ def theharvester_search(domain):
     app.logger.info(f'theHarvester search initiated for: {domain}')
     try:
         # We will capture stdout, so no need for file output
-        # Sanitize domain to prevent command injection
-        domain = sanitize_input(domain, max_length=253)
-        command = ['theHarvester', '-d', domain, '-b', 'duckduckgo,bing,yahoo,certspotter']
+        # Use absolute path to theHarvester in the same venv as python
+        venv_bin = os.path.dirname(sys.executable)
+        theharvester_cmd = os.path.join(venv_bin, 'theHarvester')
+        
+        command = [theharvester_cmd, '-d', domain, '-b', 'duckduckgo,bing,yahoo,certspotter']
         
         result = subprocess.run(
             command, 
@@ -247,49 +254,75 @@ def google_dorks_search(query):
         return [{'type': 'Error', 'value': str(e), 'source': 'Google Dorks'}]
 
 def whois_search(domain):
-    """Search WHOIS for domain information"""
+    """Search WHOIS for domain information using WhoisXML API"""
     app.logger.info(f'WHOIS search initiated for: {domain}')
+    
+    api_key = Config.WHOISXML_API_KEY
+    if not api_key:
+        # Fallback to local library if no API key (though we know it's flaky)
+        app.logger.warning('WhoisXML API key not found, falling back to local library')
+        try:
+            w = whois.whois(domain)
+            if not w.get('domain_name'):
+                 return [{'type': 'Error', 'value': 'WHOIS data not found.', 'source': 'WHOIS'}]
+            info = f"Registrar: {w.registrar}, Created: {w.creation_date}"
+            return [{'type': 'WHOIS', 'value': info, 'source': 'WHOIS', 'details': str(w)}]
+        except Exception as e:
+            return [{'type': 'Error', 'value': f"Local WHOIS failed: {str(e)}", 'source': 'WHOIS'}]
+
     try:
-        w = whois.whois(domain)
-        if not w.get('domain_name'):
-            return [{'type': 'Error', 'value': 'WHOIS data not found for domain.', 'source': 'WHOIS'}]
-
-        # Format the result for display in the main table
-        info = f"Registrar: {w.registrar}, Created: {w.creation_date}, Expires: {w.expiration_date}"
+        # WhoisXML API Endpoint
+        url = "https://www.whoisxmlapi.com/whoisserver/WhoisService"
+        params = {
+            'apiKey': api_key,
+            'domainName': domain,
+            'outputFormat': 'JSON'
+        }
         
-        # The whois object is a dict-like object, but its values can include non-serializable datetime objects.
-        # We create a serializable copy.
-        details_copy = {}
-        for key, value in w.items():
-            if isinstance(value, datetime.datetime):
-                details_copy[key] = value.isoformat()
-            elif isinstance(value, list):
-                # Handle lists that might contain datetimes
-                details_copy[key] = [v.isoformat() if isinstance(v, datetime.datetime) else v for v in value]
-            else:
-                details_copy[key] = value
-
+        response = requests.get(url, params=params)
+        
+        if response.status_code != 200:
+             return [{'type': 'Error', 'value': f"API Error: {response.status_code}", 'source': 'WhoisXML'}]
+             
+        data = response.json()
+        
+        if 'WhoisRecord' not in data:
+             return [{'type': 'Error', 'value': "No WHOIS record found.", 'source': 'WhoisXML'}]
+             
+        record = data['WhoisRecord']
+        
+        # Extract key info
+        registrar = record.get('registrarName', 'N/A')
+        created_date = record.get('createdDate', 'N/A')
+        expires_date = record.get('expiresDate', 'N/A')
+        registrant = record.get('registrant', {}).get('organization', 'N/A')
+        
+        info = f"Registrar: {registrar} | Created: {created_date} | Expires: {expires_date} | Org: {registrant}"
+        
         findings = [{
             'type': 'WHOIS', 
             'value': info, 
-            'source': 'WHOIS',
-            'details': details_copy
+            'source': 'WhoisXML API',
+            'details': record # Store full JSON record
         }]
+        
         app.logger.info(f'WHOIS search completed for: {domain}')
         return findings
+
     except Exception as e:
         app.logger.error(f'WHOIS search failed: {str(e)}', exc_info=True)
-        return [{'type': 'Error', 'value': str(e), 'source': 'WHOIS'}]
+        return [{'type': 'Error', 'value': str(e), 'source': 'WhoisXML'}]
 
 def sherlock_search(username):
-    """Search using Sherlock tool"""
+    """Search using Sherlock tool - accepts usernames, names, or any searchable string"""
     app.logger.info(f'Sherlock search initiated for: {username}')
     try:
         # Add --no-color to prevent ANSI escape codes in the output
+        # Add --local to prevent update checks from GitHub (prevents data.json errors)
         # Add a timeout and run from the user's home directory for consistency
         # Sanitize username to prevent command injection
-        username = sanitize_input(username, max_length=30)
-        command = ['sherlock', '--no-color', username]
+        username = sanitize_input(username, max_length=100)
+        command = ['sherlock', '--no-color', '--local', username]
         result = subprocess.run(
             command, 
             capture_output=True, 
@@ -300,13 +333,18 @@ def sherlock_search(username):
 
         if result.returncode != 0:
             error_message = result.stderr or result.stdout
-            return [{'type': 'Error', 'value': f"Sherlock exited with an error: {error_message}", 'source': 'Sherlock'}]
+            # Parse the error to provide a more user-friendly message
+            if 'data.json' in error_message or 'update' in error_message.lower():
+                error_message = "Sherlock update check failed. Running with local data only."
+                app.logger.warning(f'Sherlock update check failed, but continuing with local data')
+            else:
+                return [{'type': 'Error', 'value': f"Sherlock exited with an error: {error_message}", 'source': 'Sherlock'}]
 
         # Count the number of found profiles for the summary
         found_lines = [line for line in result.stdout.splitlines() if line.startswith('[+]')]
         profile_count = len(found_lines)
 
-        summary_value = f"Found {profile_count} profiles for username '{username}'"
+        summary_value = f"Found {profile_count} profiles for '{username}'"
         
         findings = [{
             'type': 'Sherlock Scan', 
@@ -370,7 +408,7 @@ def virustotal_search(query):
         return [{'type': 'Error', 'value': str(e), 'source': 'VirusTotal'}]
 
 def censys_search(query):
-    """Search Censys for host information"""
+    """Search Censys for host information (accepts IP addresses or domains)"""
     app.logger.info(f'Censys search initiated for: {query}')
     token = Config.CENSYS_API_ID
     if not token:
@@ -383,7 +421,7 @@ def censys_search(query):
         "Accept": "application/vnd.censys.api.v3.host.v1+json"
     }
     
-    # The new Censys Platform API v3 endpoint for hosts
+    # The new Censys Platform API v3 endpoint for hosts (accepts both IPs and domains)
     url = f"https://api.platform.censys.io/v3/global/asset/host/{query}"
     
     try:
@@ -398,7 +436,7 @@ def censys_search(query):
             # Use 'transport_protocol' as confirmed by the JSON response
             services.append(f"{service.get('port')}/{service.get('transport_protocol')}")
         
-        info = f"Services: {', '.join(services)}"
+        info = f"Services: {', '.join(services)}" if services else "No services found"
         
         app.logger.info(f'Censys search completed for: {query}')
         return [{'type': 'Censys Host', 'value': info, 'source': 'Censys', 'details': resp.get('result', {})}]
@@ -567,6 +605,7 @@ def heatmap():
                     popup=popup_html,
                 ).add_to(marker_cluster)
             m.save(heatmap_html_path)
+            return send_file(heatmap_html_path)
         else:
             no_data_html = """
             <!DOCTYPE html>
@@ -752,6 +791,72 @@ def get_date_range():
         app.logger.error(f'Get date range failed: {str(e)}', exc_info=True)
         return jsonify({'min_date': '', 'max_date': ''})
 
+
+# --- AI Analyst Routes ---
+
+@app.route('/ai/analyze', methods=['POST'])
+def ai_analyze():
+    try:
+        # Get recent findings for context
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM findings ORDER BY timestamp DESC LIMIT 50")
+            rows = c.fetchall()
+            # Convert rows to list of dicts for JSON serialization
+            findings = [dict(row) for row in rows]
+
+        analysis = ai_analyst.analyze_findings(findings)
+        
+        # Also extract IOCs from the raw values of findings
+        all_text = " ".join([f['value'] for f in findings])
+        iocs = ai_analyst.extract_iocs(all_text)
+        
+        return jsonify({
+            "status": "success",
+            "analysis": analysis,
+            "iocs": iocs
+        })
+    except Exception as e:
+        app.logger.error(f"AI Analyze Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/ai/chat', methods=['POST'])
+def ai_chat():
+    try:
+        data = request.get_json()
+        query = data.get('query')
+        
+        if not query:
+            return jsonify({"error": "No query provided"}), 400
+
+        # Get context
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM findings ORDER BY timestamp DESC LIMIT 50")
+            rows = c.fetchall()
+            findings = [dict(row) for row in rows]
+
+        response = ai_analyst.chat_with_data(query, findings)
+        return jsonify({"status": "success", "response": response})
+    except Exception as e:
+        app.logger.error(f"AI Chat Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/ai/report', methods=['POST'])
+def ai_report():
+    try:
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM findings ORDER BY timestamp DESC LIMIT 100")
+            rows = c.fetchall()
+            findings = [dict(row) for row in rows]
+
+        report_content = ai_analyst.generate_comprehensive_report(findings)
+        return jsonify({"status": "success", "report": report_content})
+    except Exception as e:
+        app.logger.error(f"AI Report Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     # Use configuration to determine debug mode
-    app.run(debug=app.config['DEBUG'], host='127.0.0.1', port=5000)
+    app.run(debug=app.config['DEBUG'], host='127.0.0.1', port=5001)

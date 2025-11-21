@@ -1,33 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OSINT Threat Intelligence Dashboard</title>
-    
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+
     <!-- Libraries -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.8/dist/sweetalert2.min.css" rel="stylesheet">
-    
+
     <!-- Custom CSS -->
     <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
 </head>
+
 <body>
-    
+
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <i class="fas fa-shield-halved fa-lg text-primary me-3"></i>
             <span class="logo-text">OSINT DASHBOARD</span>
         </div>
-        
+
         <div class="nav-links">
             <a href="/" class="nav-item active">
                 <i class="fas fa-chart-line"></i>
@@ -37,8 +41,12 @@
                 <i class="fas fa-sliders"></i>
                 <span>Settings</span>
             </a>
+            <a href="https://web3sec-scanner.vercel.app/" target="_blank" class="nav-item">
+                <i class="fas fa-shield-alt"></i>
+                <span>Web3Sec Scanner</span>
+            </a>
         </div>
-        
+
         <div class="sidebar-footer">
             <button id="sidebar-toggle" class="btn btn-outline-glow w-100" title="Toggle Sidebar">
                 <i class="fas fa-chevron-left"></i>
@@ -48,7 +56,7 @@
 
     <!-- Main Content -->
     <div class="main-content">
-        
+
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-5 animate-fade-in">
             <div>
@@ -69,7 +77,8 @@
                 <div class="row g-3 align-items-end">
                     <div class="col-md-5">
                         <label for="query" class="form-label">Target / Query</label>
-                        <input type="text" class="form-control" id="query" name="query" placeholder="e.g. 8.8.8.8, example.com, username" required>
+                        <input type="text" class="form-control" id="query" name="query"
+                            placeholder="e.g. 8.8.8.8, example.com, username, John Doe" required>
                     </div>
                     <div class="col-md-4">
                         <label for="tool" class="form-label">Intelligence Source</label>
@@ -78,7 +87,7 @@
                             <option value="theharvester">theHarvester (Domain Recon)</option>
                             <option value="google_dorks">Google Dorks (Search)</option>
                             <option value="whois">WHOIS (Registration)</option>
-                            <option value="sherlock">Sherlock (Usernames)</option>
+                            <option value="sherlock">Sherlock (Usernames/Names)</option>
                             <option value="virustotal">VirusTotal (Reputation)</option>
                             <option value="censys">Censys (Host Info)</option>
                         </select>
@@ -91,7 +100,8 @@
                 </div>
             </form>
             <div class="progress mt-4" style="display: none; height: 4px; background: rgba(255,255,255,0.1);">
-                <div id="collect-progress-bar" class="progress-bar bg-primary" role="progressbar" style="width: 0%;"></div>
+                <div id="collect-progress-bar" class="progress-bar bg-primary" role="progressbar" style="width: 0%;">
+                </div>
             </div>
         </div>
 
@@ -100,17 +110,25 @@
             <!-- Tabs -->
             <ul class="nav nav-tabs mb-4" id="main-tabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="findings-tab" data-bs-toggle="tab" data-bs-target="#findings" type="button">
+                    <button class="nav-link active" id="findings-tab" data-bs-toggle="tab" data-bs-target="#findings"
+                        type="button">
                         <i class="fas fa-list me-2"></i>Findings
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="heatmap-tab" data-bs-toggle="tab" data-bs-target="#heatmap" type="button">
+                    <button class="nav-link" id="heatmap-tab" data-bs-toggle="tab" data-bs-target="#heatmap"
+                        type="button">
                         <i class="fas fa-map-location-dot me-2"></i>GeoMap
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="report-tab" data-bs-toggle="tab" data-bs-target="#report" type="button">
+                    <button class="nav-link" id="ai-tab" data-bs-toggle="tab" data-bs-target="#ai-panel" type="button">
+                        <i class="fas fa-brain me-2"></i>AI Analyst
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="report-tab" data-bs-toggle="tab" data-bs-target="#report"
+                        type="button">
                         <i class="fas fa-file-pdf me-2"></i>Reports
                     </button>
                 </li>
@@ -119,12 +137,15 @@
             <div class="tab-content">
                 <!-- Findings Tab -->
                 <div class="tab-pane fade show active" id="findings">
+                    <!-- ... (existing findings content) ... -->
                     <!-- Filters -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <div class="input-group">
-                                <span class="input-group-text bg-darker border-secondary text-muted"><i class="fas fa-search"></i></span>
-                                <input type="text" class="form-control border-start-0" id="searchKeyword" placeholder="Search findings...">
+                                <span class="input-group-text bg-darker border-secondary text-muted"><i
+                                        class="fas fa-search"></i></span>
+                                <input type="text" class="form-control border-start-0" id="searchKeyword"
+                                    placeholder="Search findings...">
                             </div>
                         </div>
                         <div class="col-md-2">
@@ -150,7 +171,8 @@
                         <table id="findingsTable" class="custom-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 40px;"><input type="checkbox" id="selectAll" class="form-check-input"></th>
+                                    <th style="width: 40px;"><input type="checkbox" id="selectAll"
+                                            class="form-check-input"></th>
                                     <th style="width: 180px;">Timestamp</th>
                                     <th style="width: 150px;">Type</th>
                                     <th>Value / Summary</th>
@@ -164,10 +186,117 @@
                     </div>
                 </div>
 
+                <!-- AI Analyst Tab -->
+                <div class="tab-pane fade" id="ai-panel">
+                    <div class="row g-4">
+                        <!-- Left Column: Analysis & Stats -->
+                        <div class="col-md-8">
+                            <!-- Summary Card -->
+                            <div class="glass-card mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="mb-0"><i class="fas fa-robot me-2 text-primary"></i>Threat Analysis</h5>
+                                    <button id="runAiAnalysis" class="btn btn-sm btn-glow">
+                                        <i class="fas fa-play me-2"></i>Analyze Now
+                                    </button>
+                                </div>
+                                <div id="ai-loading" class="text-center py-4" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                    <p class="mt-2 text-muted">AI is analyzing findings...</p>
+                                </div>
+                                <div id="ai-results" style="display: none;">
+                                    <div class="alert alert-dark bg-darker border-secondary mb-3">
+                                        <h6 class="alert-heading fw-bold mb-1">Executive Summary</h6>
+                                        <p class="mb-0 text-muted" id="ai-summary">No analysis generated yet.</p>
+                                    </div>
+
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="p-3 rounded border border-secondary bg-darker h-100">
+                                                <h6 class="text-muted text-uppercase small mb-2">Threat Level</h6>
+                                                <h3 id="ai-threat-level" class="mb-0">--</h3>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="p-3 rounded border border-secondary bg-darker h-100">
+                                                <h6 class="text-muted text-uppercase small mb-2">Risk Score</h6>
+                                                <div class="d-flex align-items-center">
+                                                    <h3 id="ai-risk-score" class="mb-0 me-3">0</h3>
+                                                    <div class="progress flex-grow-1" style="height: 8px;">
+                                                        <div id="ai-risk-bar" class="progress-bar bg-success"
+                                                            role="progressbar" style="width: 0%"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4">
+                                        <h6 class="fw-bold mb-3">Recommendations</h6>
+                                        <ul id="ai-recommendations" class="list-group list-group-flush bg-transparent">
+                                            <!-- Populated by JS -->
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- IOCs -->
+                            <div class="glass-card">
+                                <h5 class="mb-3"><i class="fas fa-fingerprint me-2 text-warning"></i>Extracted IOCs</h5>
+                                <div class="row" id="ai-iocs">
+                                    <div class="col-md-4">
+                                        <h6 class="text-muted small">IP Addresses</h6>
+                                        <div id="ioc-ips" class="d-flex flex-wrap gap-1"></div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <h6 class="text-muted small">Domains</h6>
+                                        <div id="ioc-domains" class="d-flex flex-wrap gap-1"></div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <h6 class="text-muted small">Hashes</h6>
+                                        <div id="ioc-hashes" class="d-flex flex-wrap gap-1"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Chat & Tools -->
+                        <div class="col-md-4">
+                            <!-- Chat Widget -->
+                            <div class="glass-card d-flex flex-column" style="height: 600px;">
+                                <h5 class="mb-3"><i class="fas fa-comments me-2 text-info"></i>AI Query Engine</h5>
+                                <div id="chat-history"
+                                    class="flex-grow-1 overflow-auto mb-3 p-2 rounded bg-darker border border-secondary"
+                                    style="font-size: 0.9rem;">
+                                    <div class="text-muted text-center mt-3">Ask me anything about the collected data.
+                                    </div>
+                                </div>
+                                <form id="chatForm" class="mt-auto">
+                                    <div class="input-group">
+                                        <input type="text" id="chatInput" class="form-control"
+                                            placeholder="Ask a question..." required>
+                                        <button class="btn btn-outline-glow" type="submit"><i
+                                                class="fas fa-paper-plane"></i></button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <!-- AI Report -->
+                            <div class="glass-card">
+                                <h5 class="mb-3"><i class="fas fa-file-alt me-2 text-success"></i>AI Report</h5>
+                                <p class="text-muted small">Generate a comprehensive narrative report using AI.</p>
+                                <button id="generateAiReport" class="btn btn-outline-success w-100">
+                                    <i class="fas fa-magic me-2"></i>Generate AI Report
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Heatmap Tab -->
                 <div class="tab-pane fade" id="heatmap">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <p class="text-muted small mb-0"><i class="fas fa-info-circle me-1"></i> Filters from the Findings tab apply here.</p>
+                        <p class="text-muted small mb-0"><i class="fas fa-info-circle me-1"></i> Filters from the
+                            Findings tab apply here.</p>
                         <button id="loadHeatmap" class="btn btn-outline-glow btn-sm">
                             <i class="fas fa-sync-alt me-2"></i>Refresh Map
                         </button>
@@ -184,7 +313,8 @@
                             <i class="fas fa-file-contract fa-4x text-primary opacity-50"></i>
                         </div>
                         <h4>Generate Intelligence Report</h4>
-                        <p class="text-muted mb-4">Create a comprehensive PDF report containing all current findings and visualizations.</p>
+                        <p class="text-muted mb-4">Create a comprehensive PDF report containing all current findings and
+                            visualizations.</p>
                         <button id="exportPdfButton" class="btn btn-glow btn-lg">
                             <i class="fas fa-download me-2"></i>Download PDF Report
                         </button>
@@ -200,7 +330,8 @@
             <div class="modal-content modal-content-glass">
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="fas fa-code me-2 text-primary"></i>Raw Data</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <pre id="detailsContent" class="m-0"></pre>
@@ -220,4 +351,5 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.8/dist/sweetalert2.all.min.js"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
+
 </html>
