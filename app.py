@@ -654,17 +654,17 @@ def export_pdf():
         map_html_filename = f"static/map_{int(time.time())}.html"
 
         try:
-            if points:
-                # 1. Generate hybrid heatmap HTML
-                m = folium.Map(location=[20, 0], zoom_start=2)
-                heat_data = [[point['lat'], point['lon']] for point in points]
-                HeatMap(heat_data).add_to(m)
-                marker_cluster = MarkerCluster().add_to(m)
-                for lat, lon, value in points:
-                    folium.Marker(location=[lat, lon], popup=value).add_to(marker_cluster)
-                m.save(map_html_filename)
-    
-                # 2. Take screenshot with Selenium
+            # 1. Generate hybrid heatmap HTML (always try this first)
+            m = folium.Map(location=[20, 0], zoom_start=2)
+            heat_data = [[point['lat'], point['lon']] for point in points]
+            HeatMap(heat_data).add_to(m)
+            marker_cluster = MarkerCluster().add_to(m)
+            for lat, lon, value in points:
+                folium.Marker(location=[lat, lon], popup=value).add_to(marker_cluster)
+            m.save(map_html_filename)
+
+            # 2. Try to take screenshot with Selenium (Best quality, but fails on Vercel)
+            try:
                 options = webdriver.ChromeOptions()
                 options.add_argument('--headless')
                 options.add_argument('--no-sandbox')
@@ -679,6 +679,38 @@ def export_pdf():
                 driver.save_screenshot(heatmap_filename)
                 driver.quit()
                 heatmap_path = os.path.abspath(heatmap_filename)
+                app.logger.info('Generated heatmap using Selenium')
+            
+            except Exception as e:
+                app.logger.warning(f'Selenium screenshot failed (expected on Vercel): {str(e)}')
+                
+                # 3. Fallback: Google Static Maps API
+                api_key = Config.GOOGLE_API_KEY
+                if api_key:
+                    try:
+                        app.logger.info('Attempting fallback to Google Static Maps API')
+                        # Limit markers to avoid URL length limits (approx 2048 chars)
+                        # We'll take up to 15 points
+                        markers = []
+                        for i, point in enumerate(points[:15]):
+                            lat, lon = point['lat'], point['lon']
+                            markers.append(f"markers=color:red%7Clabel:{i+1}%7C{lat},{lon}")
+                        
+                        markers_str = "&".join(markers)
+                        static_map_url = f"https://maps.googleapis.com/maps/api/staticmap?center=20,0&zoom=1&size=600x400&maptype=roadmap&{markers_str}&key={api_key}"
+                        
+                        response = requests.get(static_map_url)
+                        if response.status_code == 200:
+                            with open(heatmap_filename, 'wb') as f:
+                                f.write(response.content)
+                            heatmap_path = os.path.abspath(heatmap_filename)
+                            app.logger.info('Generated heatmap using Google Static Maps')
+                        else:
+                            app.logger.error(f'Google Static Maps API failed: {response.status_code} - {response.text}')
+                    except Exception as static_e:
+                        app.logger.error(f'Static Map fallback failed: {str(static_e)}')
+                else:
+                    app.logger.warning('Google API key not found, skipping map generation')
     
             # 3. Render HTML for PDF
             rendered_html = render_template(
