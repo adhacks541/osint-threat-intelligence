@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify, send_file
 import sqlite3
 import folium
 from folium.plugins import HeatMap, MarkerCluster
-from xhtml2pdf import pisa
+
 import os
 import sys
 import json
@@ -624,9 +624,11 @@ def heatmap():
 
 @app.route('/export_pdf')
 def export_pdf():
-    """Export findings to PDF report"""
+    """Export findings to PDF report using FPDF2 (Pure Python)"""
     app.logger.info('PDF export requested')
     try:
+        from fpdf import FPDF
+        
         with get_db() as conn:
             c = conn.cursor()
             c.execute("SELECT * FROM findings ORDER BY timestamp DESC")
@@ -635,24 +637,11 @@ def export_pdf():
             c.execute("SELECT lat, lon, value FROM findings WHERE lat IS NOT NULL AND lon IS NOT NULL")
             points = c.fetchall()
 
-        # Process findings for the template
-        findings_for_template = []
-        for finding in db_findings:
-            finding_dict = dict(finding)
-            if finding_dict['details']:
-                try:
-                    # Parse and re-stringify for pretty printing in the report
-                    details_obj = json.loads(finding_dict['details'])
-                    finding_dict['details'] = json.dumps(details_obj, indent=4)
-                except (json.JSONDecodeError, TypeError):
-                    # If it's not a valid JSON string (like for theHarvester), just pass it as is
-                    pass
-            findings_for_template.append(finding_dict)
-    
         heatmap_path = None
         heatmap_filename = f"static/heatmap_{int(time.time())}.png"
         map_html_filename = f"static/map_{int(time.time())}.html"
 
+        # --- Map Generation Logic (Same as before) ---
         try:
             # 1. Generate hybrid heatmap HTML (always try this first)
             m = folium.Map(location=[20, 0], zoom_start=2)
@@ -663,7 +652,7 @@ def export_pdf():
                 folium.Marker(location=[lat, lon], popup=value).add_to(marker_cluster)
             m.save(map_html_filename)
 
-            # 2. Try to take screenshot with Selenium (Best quality, but fails on Vercel)
+            # 2. Try to take screenshot with Selenium
             try:
                 options = webdriver.ChromeOptions()
                 options.add_argument('--headless')
@@ -672,25 +661,23 @@ def export_pdf():
                 
                 service = ChromeService()
                 driver = webdriver.Chrome(service=service, options=options)
-                driver.set_window_size(1200, 800) # Set window size to prevent cut-off map
+                driver.set_window_size(1200, 800)
                 
                 driver.get(f"file://{os.path.abspath(map_html_filename)}")
-                time.sleep(2) # Allow map to render
+                time.sleep(2)
                 driver.save_screenshot(heatmap_filename)
                 driver.quit()
                 heatmap_path = os.path.abspath(heatmap_filename)
                 app.logger.info('Generated heatmap using Selenium')
             
             except Exception as e:
-                app.logger.warning(f'Selenium screenshot failed (expected on Vercel): {str(e)}')
+                app.logger.warning(f'Selenium screenshot failed: {str(e)}')
                 
                 # 3. Fallback: Google Static Maps API
                 api_key = Config.GOOGLE_API_KEY
                 if api_key:
                     try:
                         app.logger.info('Attempting fallback to Google Static Maps API')
-                        # Limit markers to avoid URL length limits (approx 2048 chars)
-                        # We'll take up to 15 points
                         markers = []
                         for i, point in enumerate(points[:15]):
                             lat, lon = point['lat'], point['lon']
@@ -706,40 +693,91 @@ def export_pdf():
                             heatmap_path = os.path.abspath(heatmap_filename)
                             app.logger.info('Generated heatmap using Google Static Maps')
                         else:
-                            app.logger.error(f'Google Static Maps API failed: {response.status_code} - {response.text}')
+                            app.logger.error(f'Google Static Maps API failed: {response.status_code}')
                     except Exception as static_e:
                         app.logger.error(f'Static Map fallback failed: {str(static_e)}')
-                else:
-                    app.logger.warning('Google API key not found, skipping map generation')
-    
-            # 3. Render HTML for PDF
-            rendered_html = render_template(
-                'report_template.html',
-                findings=findings_for_template,
-                generation_date=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                heatmap_path=heatmap_path
-            )
+        except Exception as map_e:
+            app.logger.error(f"Map generation error: {map_e}")
+
+        # --- PDF Generation with FPDF2 ---
+        class PDF(FPDF):
+            def header(self):
+                self.set_font('Helvetica', 'B', 15)
+                self.cell(0, 10, 'OSINT Threat Intelligence Report', align='C')
+                self.ln(20)
+
+            def footer(self):
+                self.set_y(-15)
+                self.set_font('Helvetica', 'I', 8)
+                self.cell(0, 10, f'Page {self.page_no()}/{{nb}}', align='C')
+
+        pdf = PDF()
+        pdf.alias_nb_pages()
+        pdf.add_page()
+        pdf.set_font('Helvetica', '', 12)
+
+        # Report Info
+        pdf.set_font('Helvetica', 'B', 12)
+        pdf.cell(0, 10, f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True)
+        pdf.ln(10)
+
+        # Add Map if available
+        if heatmap_path and os.path.exists(heatmap_path):
+            try:
+                pdf.image(heatmap_path, x=10, w=190)
+                pdf.ln(10)
+            except Exception as img_e:
+                app.logger.error(f"Failed to add image to PDF: {img_e}")
+                pdf.cell(0, 10, "[Map Image Failed to Load]", ln=True)
+
+        # Findings Table
+        pdf.set_font('Helvetica', 'B', 14)
+        pdf.cell(0, 10, 'Findings Summary', ln=True)
+        pdf.ln(5)
+
+        for finding in db_findings:
+            f = dict(finding)
             
-            # 4. Create PDF
-            output_filename = 'report.pdf'
-            with open(output_filename, "w+b") as pdf_file:
-                pisa_status = pisa.CreatePDF(rendered_html, dest=pdf_file)
-    
-            if pisa_status.err:
-                app.logger.error('PDF generation failed')
-                return "Error generating PDF", 500
+            # Title / Type
+            pdf.set_font('Helvetica', 'B', 11)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(0, 8, f"{f['type']} - {f['source']}", ln=True, fill=True)
             
-            app.logger.info('PDF export completed successfully')
-            return send_file(output_filename, as_attachment=True)
-        finally:
-            # 5. Cleanup
-            if heatmap_path and os.path.exists(heatmap_filename):
-                os.remove(heatmap_filename)
-            if os.path.exists(map_html_filename):
-                os.remove(map_html_filename)
+            # Content
+            pdf.set_font('Helvetica', '', 10)
+            value_text = f.get('value', 'N/A')
+            # Handle multi-line text
+            pdf.multi_cell(0, 6, f"Value: {value_text}")
+            
+            if f.get('country'):
+                pdf.cell(0, 6, f"Location: {f['country']} (ASN: {f.get('asn', 'N/A')})", ln=True)
+            
+            # Details (truncated if too long)
+            if f.get('details'):
+                details_text = str(f['details'])
+                if len(details_text) > 500:
+                    details_text = details_text[:500] + "..."
+                pdf.multi_cell(0, 5, f"Details: {details_text}")
+            
+            pdf.ln(5) # Space between items
+
+        # Output
+        output_filename = 'report.pdf'
+        pdf.output(output_filename)
+        
+        app.logger.info('PDF export completed successfully')
+        
+        # Cleanup
+        if heatmap_path and os.path.exists(heatmap_filename):
+            os.remove(heatmap_filename)
+        if os.path.exists(map_html_filename):
+            os.remove(map_html_filename)
+
+        return send_file(output_filename, as_attachment=True)
+
     except Exception as e:
         app.logger.error(f'PDF export error: {str(e)}', exc_info=True)
-        return "Error generating PDF", 500
+        return f"Error generating PDF: {str(e)}", 500
 
 @app.route('/settings')
 def settings():

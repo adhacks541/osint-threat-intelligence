@@ -6,8 +6,7 @@ requests>=2.31.0
 folium>=0.15.0
 
 # PDF Generation
-xhtml2pdf>=0.2.11
-reportlab>=3.6.13
+fpdf2>=2.7.6
 selenium>=4.15.2
 
 # OSINT Tools & APIs
